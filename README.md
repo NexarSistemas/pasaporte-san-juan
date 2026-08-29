@@ -38,5 +38,3 @@ python3 -m http.server 8080
 ```
 
 No hay dependencias de Node para ejecutar el sitio. Consultá [supabase/README.md](supabase/README.md), [PRIVACY.md](PRIVACY.md), [EULA.md](EULA.md) y [THIRD_PARTY.md](THIRD_PARTY.md).
-
-El flujo de ramas y releases está documentado en [CONTRIBUTING.md](CONTRIBUTING.md).
