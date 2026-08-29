@@ -2,7 +2,7 @@
 
 **Nexar Sistemas**  
 Copyright (c) 2026 Nexar Sistemas. Todos los derechos reservados.  
-**Versión:** 1.0.0 · **Estado:** Vigente
+**Versión:** 1.1.0 · **Estado:** Vigente
 
 Este acuerdo regula el acceso y uso de **Pasaporte San Juan**, un juego web educativo estático desarrollado y distribuido por Nexar Sistemas. Al acceder o utilizarlo, el usuario acepta estas condiciones.
 
@@ -20,7 +20,7 @@ Salvo autorización expresa o disposición legal, no se podrá redistribuir come
 
 ## 4. Acceso web y servicios de terceros
 
-La versión actual es un juego HTML, CSS y JavaScript estático publicado mediante GitHub Pages. Su disponibilidad puede depender del navegador, dispositivo, conexión y servicios de alojamiento de terceros. Nexar Sistemas podrá actualizar, reemplazar o discontinuar la publicación.
+La versión actual es un juego HTML, CSS y JavaScript estático publicado mediante GitHub Pages y utiliza Supabase para almacenar un identificador técnico aleatorio y el historial de partidas. Su disponibilidad puede depender del navegador, dispositivo, conexión y servicios de terceros. Nexar Sistemas podrá actualizar, reemplazar o discontinuar la publicación.
 
 ## 5. Actualizaciones
 

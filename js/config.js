@@ -15,3 +15,11 @@ const GAME_CONFIG = {
     { minCorrect: 0, title: 'Viajero en entrenamiento', message: 'Todo gran viaje empieza con el primer paso. ¡Intentá de nuevo!' }
   ]
 };
+
+// Una publishable key está diseñada para estar en el navegador. El acceso a
+// datos depende de RLS y de las RPC, no del secreto de esta clave.
+const SUPABASE_CONFIG = {
+  url: 'https://xffndejkcvsnvozeswbk.supabase.co',
+  publishableKey: 'sb_publishable_4ccM1EMSzxn7Agt8pjNqdA_Ge8hkEhN',
+  playerTokenStorageKey: 'pasaporte-san-juan.player-token.v1'
+};

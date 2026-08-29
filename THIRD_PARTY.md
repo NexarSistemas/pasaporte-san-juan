@@ -11,6 +11,13 @@ Las imágenes se incorporan como copias locales optimizadas. Cada una conserva l
 
 CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
 
+## Infraestructura
+
+| Servicio | Uso | Referencia |
+| --- | --- | --- |
+| Supabase | PostgreSQL, RPC y controles de acceso del historial | https://supabase.com/ |
+| GitHub Pages | Publicación del frontend estático | https://pages.github.com/ |
+
 ## Fuentes editoriales
 
 Las preguntas turísticas se verificaron y se reescribieron a partir de páginas oficiales de Argentina.gob.ar, Administración de Parques Nacionales y Turismo de San Juan. Las preguntas de argentinismos usan ASALE o el Diccionario de la lengua española. La fuente, URL y fecha de revisión de cada dato figuran en `js/questions.js`.

@@ -16,6 +16,19 @@ const GameEngine = (() => {
     return { questions, currentIndex: 0, score: 0, streak: 0, maxStreak: 0, correctAnswers: 0, answered: false };
   };
 
+  // La RPC ya selecciona y mezcla el contenido. No envía la respuesta correcta
+  // hasta después de responder.
+  const createRemoteGame = (partida) => ({
+    partidaId: partida.partida_id,
+    questions: partida.questions,
+    currentIndex: 0,
+    score: 0,
+    streak: 0,
+    maxStreak: 0,
+    correctAnswers: 0,
+    answered: false
+  });
+
   const getCurrentQuestion = (game) => game.questions[game.currentIndex];
   const isFinished = (game) => game.currentIndex >= game.questions.length;
 
@@ -43,6 +56,29 @@ const GameEngine = (() => {
     return { correct, earned, correctAnswer: question.correctAnswer, question };
   };
 
+  const answerRemote = (game, answerId, remoteOutcome) => {
+    if (game.answered || isFinished(game)) return null;
+    const question = getCurrentQuestion(game);
+    const correct = remoteOutcome.correct;
+    game.answered = true;
+    if (correct) {
+      game.correctAnswers += 1;
+      game.streak += 1;
+      game.maxStreak = Math.max(game.maxStreak, game.streak);
+      game.score += remoteOutcome.earned;
+    } else {
+      game.streak = 0;
+    }
+    return {
+      correct,
+      earned: remoteOutcome.earned,
+      correctAnswer: remoteOutcome.correct_answer_id,
+      correctAnswerText: remoteOutcome.correct_answer_text,
+      question: { ...question, explanation: remoteOutcome.explanation },
+      selectedAnswer: answerId
+    };
+  };
+
   const next = (game) => {
     if (!game.answered) return false;
     game.currentIndex += 1;
@@ -50,5 +86,5 @@ const GameEngine = (() => {
     return !isFinished(game);
   };
 
-  return { createGame, getCurrentQuestion, isFinished, answer, next };
+  return { createGame, createRemoteGame, getCurrentQuestion, isFinished, answer, answerRemote, next };
 })();

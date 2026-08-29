@@ -1,38 +1,34 @@
-# Pasaporte San Juan
+# Pasaporte San Juan v0.3.0
 
-Juego educativo de preguntas y respuestas para descubrir la provincia de San Juan. Cada partida propone 10 preguntas al azar, puntaje, rachas y explicaciones breves para aprender durante el recorrido.
+Juego educativo de preguntas sobre San Juan. La interfaz conserva HTML, CSS y JavaScript vanilla en GitHub Pages; Supabase aporta historial y lógica sensible.
 
-## Tecnologías
+## Arquitectura
 
-HTML, CSS y JavaScript vanilla. No requiere dependencias, backend ni APIs externas, por lo que puede publicarse directamente en GitHub Pages.
+`GitHub Pages → RPC con publishable key → Supabase xffndejkcvsnvozeswbk (sa-east-1)`
+
+El proyecto usa PostgreSQL, RLS y las RPC `crear_partida`, `responder_pregunta` y `finalizar_partida`. El navegador solo conoce URL y publishable key en `js/config.js`; nunca contiene service_role ni secret keys y no consulta tablas directamente.
+
+## Flujo y anti-repetición
+
+El navegador crea un UUID v4 con `crypto.randomUUID()` y lo guarda como `pasaporte-san-juan.player-token.v1` en `localStorage`. No se solicitan cuentas ni datos personales.
+
+La selección sucede en PostgreSQL: primero preguntas activas nunca vistas; luego las menos recientes y menos usadas en las últimas tres partidas, con aleatoriedad. Se evita duplicar dentro de una partida y, si hay alternativa, repetir exactamente un conjunto anterior. Al agotar las preguntas activas inicia un ciclo nuevo sin borrar historial. Las preguntas agregadas después se priorizan como nunca vistas.
+
+La opción correcta y la explicación solo se devuelven después de contestar. Al finalizar, la base reconstruye el puntaje, aciertos y racha desde el historial.
+
+## Base de datos y pruebas
+
+- `supabase/migrations/`: esquema, RLS, RPC, índices y seed aplicable desde cero.
+- `supabase/seed.sql`: seed editorial idempotente.
+- `supabase/tests/v030_rpc_tests.sql`: suite transaccional, incluida la simulación de 100 preguntas en diez partidas sin repetición.
+- `scripts/generate-seed.mjs`: regenera el SQL desde la fixture `js/questions.js`.
+
+El seed migra 24 preguntas, 96 respuestas y 7 categorías. `questions.js` queda como fixture editorial; producción no lo carga ni mezcla datos locales/remotos.
 
 ## Ejecutar localmente
 
-Abrí `index.html` con un navegador o serví esta carpeta con cualquier servidor estático. Las rutas son relativas y también funcionan desde el subpath de GitHub Pages.
+```bash
+python3 -m http.server 8080
+```
 
-## Estructura
-
-- `index.html`: estructura accesible de las pantallas.
-- `css/app.css`: estilo responsive y estados visuales.
-- `js/config.js`: identidad del juego, puntuación y niveles de resultado.
-- `js/questions.js`: banco temporal local de preguntas.
-- `js/game-engine.js`: motor reutilizable e independiente del contenido.
-- `js/app.js`: coordinación de interfaz, eventos y renderizado.
-
-## Motor genérico
-
-El motor selecciona preguntas sin repetición dentro de una partida, mezcla preguntas y respuestas, controla puntaje, rachas, bonus, progreso y finalización. No conoce San Juan ni categorías concretas: otra experiencia educativa puede reutilizarlo entregándole una configuración y un banco de preguntas con el mismo formato.
-
-`questions.js` contiene un banco editorial local con fuentes y fechas de revisión por pregunta. En una versión posterior, su origen podrá reemplazarse por Supabase sin cambiar sustancialmente el motor.
-
-Las imágenes locales y sus licencias están documentadas en [THIRD_PARTY.md](THIRD_PARTY.md).
-
-## Próximas versiones
-
-La evolución prevista contempla Supabase PostgreSQL, categorías y banco de preguntas dinámicos, fuentes, jugadores, partidas, historial, anti-repetición entre partidas y administración de contenido. Ninguna de esas capacidades forma parte de v0.1.0.
-
-## Documentación legal
-
-- [Acuerdo de Licencia de Usuario Final](EULA.md)
-- [Política de Privacidad](PRIVACY.md)
-- [Licencia propietaria](LICENSE)
+No hay dependencias de Node para ejecutar el sitio. Consultá [supabase/README.md](supabase/README.md), [PRIVACY.md](PRIVACY.md), [EULA.md](EULA.md) y [THIRD_PARTY.md](THIRD_PARTY.md).
