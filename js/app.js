@@ -18,6 +18,17 @@
     const hint = $('#hint-text');
     hint.textContent = question.hint || '';
     hint.classList.toggle('is-hidden', !question.hint);
+    const media = $('#question-media');
+    const image = $('#question-image');
+    if (question.image) {
+      image.src = question.image;
+      image.alt = question.imageAlt || `Imagen relacionada con ${question.category}`;
+      media.classList.remove('is-hidden');
+    } else {
+      image.removeAttribute('src');
+      image.alt = '';
+      media.classList.add('is-hidden');
+    }
     $('#feedback').className = 'feedback is-hidden';
     $('#next-button').classList.add('is-hidden');
     const answers = $('#answers');

@@ -23,7 +23,9 @@ Abrí `index.html` con un navegador o serví esta carpeta con cualquier servidor
 
 El motor selecciona preguntas sin repetición dentro de una partida, mezcla preguntas y respuestas, controla puntaje, rachas, bonus, progreso y finalización. No conoce San Juan ni categorías concretas: otra experiencia educativa puede reutilizarlo entregándole una configuración y un banco de preguntas con el mismo formato.
 
-`questions.js` contiene contenido temporal de desarrollo. En una versión posterior, su origen podrá reemplazarse por Supabase sin cambiar sustancialmente el motor.
+`questions.js` contiene un banco editorial local con fuentes y fechas de revisión por pregunta. En una versión posterior, su origen podrá reemplazarse por Supabase sin cambiar sustancialmente el motor.
+
+Las imágenes locales y sus licencias están documentadas en [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Próximas versiones
 

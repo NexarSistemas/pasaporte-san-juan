@@ -10,23 +10,35 @@
   <body>
     <main class="site-shell">
       <section class="game-card" aria-labelledby="game-title">
-        <header class="brand">
-          <span class="passport-mark" aria-hidden="true">✦</span>
-          <p class="eyebrow">Juego educativo</p>
-          <h1 id="game-title">Pasaporte San Juan</h1>
-          <p class="subtitle">Un viaje de preguntas para descubrir los paisajes, sabores e historias de la provincia.</p>
-        </header>
-
-        <section id="welcome-screen" class="screen" aria-labelledby="welcome-heading">
-          <div class="hero-illustration" role="img" aria-label="Sol naciente sobre montañas de San Juan"></div>
-          <h2 id="welcome-heading">¿Listo para sellar tu pasaporte?</h2>
-          <p>Respondé 10 preguntas, armá rachas y aprendé algo nuevo en cada parada.</p>
-          <ul class="feature-list" aria-label="Características de la partida">
-            <li><span aria-hidden="true">◈</span> Preguntas al azar</li>
-            <li><span aria-hidden="true">⚡</span> Bonus por racha</li>
-            <li><span aria-hidden="true">⌁</span> Datos para explorar</li>
-          </ul>
-          <button id="start-button" class="button button-primary" type="button">Comenzar el viaje <span aria-hidden="true">→</span></button>
+        <section id="welcome-screen" class="screen welcome" aria-labelledby="welcome-heading">
+          <header class="hero">
+            <img src="assets/images/ischigualasto-hero.jpg" alt="Formación rocosa del Parque Provincial Ischigualasto, San Juan" />
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+              <div class="hero-badges"><span>☀️ Día del Turista</span><span>🇦🇷 San Juan</span></div>
+              <p class="eyebrow hero-eyebrow">Juego educativo</p>
+              <h1 id="game-title">Pasaporte San Juan</h1>
+              <p>Recorré la provincia, descubrí sus secretos y demostrále al país cuánto sabés de San Juan y del habla argentina.</p>
+            </div>
+          </header>
+          <div class="welcome-grid">
+            <section class="mission" aria-labelledby="welcome-heading">
+              <p class="eyebrow">Tu misión 🧳</p>
+              <h2 id="welcome-heading">Sumá sellos, descubrí historias</h2>
+              <p>Respondé 10 preguntas al azar sobre destinos, naturaleza, cultura y palabras bien nuestras.</p>
+              <ul class="category-cards" aria-label="Categorías del juego">
+                <li>🗺️ Destinos</li><li>🌄 Naturaleza</li><li>🧭 Aventura</li><li>🎭 Cultura</li><li>💬 Argentinismos</li>
+              </ul>
+            </section>
+            <aside class="points-card" aria-label="Cómo sumar puntos">
+              <p class="eyebrow">Cómo sumar puntos</p>
+              <h2>Viajá con estrategia</h2>
+              <p><strong>+100</strong> por cada respuesta correcta.</p>
+              <p><strong>+50</strong> desde 2 aciertos seguidos.</p>
+              <p><strong>+100</strong> desde 4 aciertos seguidos.</p>
+              <button id="start-button" class="button button-primary" type="button">Comenzar el viaje <span aria-hidden="true">→</span></button>
+            </aside>
+          </div>
         </section>
 
         <section id="game-screen" class="screen is-hidden" aria-live="polite" aria-labelledby="question-heading">
@@ -39,6 +51,7 @@
           <p id="category-text" class="category"></p>
           <h2 id="question-heading" class="question"></h2>
           <p id="hint-text" class="hint is-hidden"></p>
+          <figure id="question-media" class="question-media is-hidden"><img id="question-image" src="" alt="" /></figure>
           <div id="answers" class="answers" role="group" aria-label="Opciones de respuesta"></div>
           <div id="feedback" class="feedback is-hidden" aria-live="assertive"></div>
           <button id="next-button" class="button button-primary is-hidden" type="button">Siguiente pregunta <span aria-hidden="true">→</span></button>
