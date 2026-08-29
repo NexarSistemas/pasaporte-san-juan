@@ -28,3 +28,9 @@ El motor selecciona preguntas sin repetición dentro de una partida, mezcla preg
 ## Próximas versiones
 
 La evolución prevista contempla Supabase PostgreSQL, categorías y banco de preguntas dinámicos, fuentes, jugadores, partidas, historial, anti-repetición entre partidas y administración de contenido. Ninguna de esas capacidades forma parte de v0.1.0.
+
+## Documentación legal
+
+- [Acuerdo de Licencia de Usuario Final](EULA.md)
+- [Política de Privacidad](PRIVACY.md)
+- [Licencia propietaria](LICENSE)
