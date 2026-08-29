@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Un juego educativo para descubrir San Juan." />
+    <title>Pasaporte San Juan</title>
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <main class="site-shell">
+      <section class="game-card" aria-labelledby="game-title">
+        <header class="brand">
+          <span class="passport-mark" aria-hidden="true">✦</span>
+          <p class="eyebrow">Juego educativo</p>
+          <h1 id="game-title">Pasaporte San Juan</h1>
+          <p class="subtitle">Un viaje de preguntas para descubrir los paisajes, sabores e historias de la provincia.</p>
+        </header>
+
+        <section id="welcome-screen" class="screen" aria-labelledby="welcome-heading">
+          <div class="hero-illustration" role="img" aria-label="Sol naciente sobre montañas de San Juan"></div>
+          <h2 id="welcome-heading">¿Listo para sellar tu pasaporte?</h2>
+          <p>Respondé 10 preguntas, armá rachas y aprendé algo nuevo en cada parada.</p>
+          <ul class="feature-list" aria-label="Características de la partida">
+            <li><span aria-hidden="true">◈</span> Preguntas al azar</li>
+            <li><span aria-hidden="true">⚡</span> Bonus por racha</li>
+            <li><span aria-hidden="true">⌁</span> Datos para explorar</li>
+          </ul>
+          <button id="start-button" class="button button-primary" type="button">Comenzar el viaje <span aria-hidden="true">→</span></button>
+        </section>
+
+        <section id="game-screen" class="screen is-hidden" aria-live="polite" aria-labelledby="question-heading">
+          <div class="stats" aria-label="Estado de la partida">
+            <div><span class="stat-label">Progreso</span><strong id="progress-text">1 de 10</strong></div>
+            <div><span class="stat-label">Puntaje</span><strong id="score-text">0</strong></div>
+            <div><span class="stat-label">Racha</span><strong id="streak-text">0</strong></div>
+          </div>
+          <div class="progress-track" aria-hidden="true"><div id="progress-bar" class="progress-bar"></div></div>
+          <p id="category-text" class="category"></p>
+          <h2 id="question-heading" class="question"></h2>
+          <p id="hint-text" class="hint is-hidden"></p>
+          <div id="answers" class="answers" role="group" aria-label="Opciones de respuesta"></div>
+          <div id="feedback" class="feedback is-hidden" aria-live="assertive"></div>
+          <button id="next-button" class="button button-primary is-hidden" type="button">Siguiente pregunta <span aria-hidden="true">→</span></button>
+        </section>
+
+        <section id="result-screen" class="screen is-hidden" aria-labelledby="result-heading">
+          <div class="result-badge" aria-hidden="true">✦</div>
+          <p class="eyebrow">Viaje completado</p>
+          <h2 id="result-heading">Tu pasaporte tiene nuevos sellos</h2>
+          <p id="result-level" class="result-level"></p>
+          <p id="result-message" class="result-message"></p>
+          <div class="result-stats" aria-label="Resultados de la partida">
+            <div><strong id="correct-text">0</strong><span>Aciertos</span></div>
+            <div><strong id="final-score-text">0</strong><span>Puntos</span></div>
+            <div><strong id="max-streak-text">0</strong><span>Mejor racha</span></div>
+          </div>
+          <button id="restart-button" class="button button-primary" type="button">Jugar nuevamente <span aria-hidden="true">↻</span></button>
+        </section>
+      </section>
+    </main>
+    <script src="js/config.js"></script>
+    <script src="js/questions.js"></script>
+    <script src="js/game-engine.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
