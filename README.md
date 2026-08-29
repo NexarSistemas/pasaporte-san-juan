@@ -1,6 +1,10 @@
-# Pasaporte San Juan v0.3.0
+# Pasaporte San Juan v0.4.1
 
-Juego educativo de preguntas sobre San Juan. La interfaz conserva HTML, CSS y JavaScript vanilla en GitHub Pages; Supabase aporta historial y lógica sensible.
+Juego educativo de preguntas sobre San Juan, construido con HTML, CSS y JavaScript vanilla y publicado en [GitHub Pages](https://pasaporte.nexarsistemas.com.ar). Supabase aporta historial y lógica sensible.
+
+El juego ofrece 24 preguntas en 7 categorías, historial de partidas, selección anti-repetición, efemérides dinámicas e imágenes licenciadas. El footer identifica a Nexar Sistemas y muestra la versión activa.
+
+`VERSION` es la referencia documental principal de cada release; `scripts/check-version.mjs` comprueba que coincida con `GAME_CONFIG.version` en el frontend.
 
 ## Arquitectura
 
