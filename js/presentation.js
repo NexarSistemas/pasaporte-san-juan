@@ -2,7 +2,11 @@
 const getSeasonalMessage = (date = new Date()) => {
   const month = date.getMonth() + 1;
   const day = date.getDate();
-  return PRESENTATION_CONFIG.specialEvents[`${month}-${day}`] || PRESENTATION_CONFIG.monthEvents[month]?.[0] || PRESENTATION_CONFIG.defaultBadge;
+  const specialEvent = PRESENTATION_CONFIG.specialEvents[`${month}-${day}`];
+  if (specialEvent) return specialEvent;
+  const monthlyEvents = PRESENTATION_CONFIG.monthEvents[month];
+  if (monthlyEvents?.length) return monthlyEvents[(day - 1) % monthlyEvents.length];
+  return PRESENTATION_CONFIG.defaultBadge;
 };
 const renderPresentation = () => {
   document.querySelector('#seasonal-badge').textContent = `☀️ ${getSeasonalMessage()}`;

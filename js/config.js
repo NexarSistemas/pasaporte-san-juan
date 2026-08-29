@@ -17,6 +17,7 @@ const GAME_CONFIG = {
   ]
 };
 
+// Los mensajes mensuales rotan de forma determinística según el día del mes.
 const PRESENTATION_CONFIG = {
   defaultBadge: 'Descubrí San Juan',
   monthEvents: { 6: ['Mes de la Fundación'], 9: ['Mes del Turismo', 'Mes del Maestro'] },
