@@ -4,6 +4,8 @@ Juego educativo de preguntas sobre San Juan. La interfaz conserva HTML, CSS y Ja
 
 ## Arquitectura
 
+La evolución futura del banco reutilizable de contenidos está descrita en [ARQUITECTURA_CONTENIDOS_NEXAR.md](ARQUITECTURA_CONTENIDOS_NEXAR.md).
+
 `GitHub Pages → RPC con publishable key → Supabase xffndejkcvsnvozeswbk (sa-east-1)`
 
 El proyecto usa PostgreSQL, RLS y las RPC `crear_partida`, `responder_pregunta` y `finalizar_partida`. El navegador solo conoce URL y publishable key en `js/config.js`; nunca contiene service_role ni secret keys y no consulta tablas directamente.
