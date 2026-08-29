@@ -9,6 +9,8 @@ Las imágenes se incorporan como copias locales optimizadas. Cada una conserva l
 | `assets/images/ischigualasto-hero.jpg` | *A - Valle de la Luna, el hongo, San Juan, Argentina* | M.Bustos | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:A_-_Valle_de_la_Luna,_el_hongo,_San_Juan,_Argentina.jpg |
 | `assets/images/dique-ullum.jpg` | *Dique y embalse Ullum, San Juan, Argentina* | Enrique Guardia | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Dique_y_embalse_Ullum,_San_Juan,_Argentina.jpg |
 
+`ischigualasto-hero.jpg` también se usa en las preguntas `q02` y `q21`, ambas directamente vinculadas al mismo paisaje; no incorpora una nueva obra ni licencia.
+
 CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
 
 ## Infraestructura

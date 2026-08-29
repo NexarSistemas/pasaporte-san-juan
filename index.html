@@ -15,7 +15,7 @@
             <img src="assets/images/ischigualasto-hero.jpg" alt="Formación rocosa del Parque Provincial Ischigualasto, San Juan" />
             <div class="hero-overlay"></div>
             <div class="hero-content">
-              <div class="hero-badges"><span>☀️ Día del Turista</span><span>🇦🇷 San Juan</span></div>
+              <div class="hero-badges"><span id="seasonal-badge">☀️ Descubrí San Juan</span><span>🇦🇷 San Juan</span></div>
               <p class="eyebrow hero-eyebrow">Juego educativo</p>
               <h1 id="game-title">Pasaporte San Juan</h1>
               <p>Recorré la provincia, descubrí sus secretos y demostrále al país cuánto sabés de San Juan y del habla argentina.</p>
@@ -72,10 +72,13 @@
           <button id="restart-button" class="button button-primary" type="button">Jugar nuevamente <span aria-hidden="true">↻</span></button>
         </section>
       </section>
+      <footer class="site-footer">Desarrollado y mantenido por <a href="https://nexarsistemas.com.ar/" target="_blank" rel="noopener noreferrer">Nexar Sistemas</a> - v<span id="app-version">0.4.0</span></footer>
     </main>
     <script src="js/config.js"></script>
+    <script src="js/presentation.js"></script>
     <script src="js/supabase-client.js"></script>
     <script src="js/game-engine.js"></script>
     <script src="js/app.js"></script>
+    <script>renderPresentation();</script>
   </body>
 </html>
