@@ -3,6 +3,7 @@
   const screens = { welcome: $('#welcome-screen'), game: $('#game-screen'), result: $('#result-screen') };
   let game;
   let answerPending = false;
+  let nextPending = false;
 
   const showScreen = (name) => Object.entries(screens).forEach(([key, element]) => element.classList.toggle('is-hidden', key !== name));
   const getLevel = (correctAnswers) => GAME_CONFIG.resultLevels.find((level) => correctAnswers >= level.minCorrect);
@@ -36,14 +37,33 @@
     hint.classList.toggle('is-hidden', !question.hint);
     const media = $('#question-media');
     const image = $('#question-image');
+    const mediaContext = $('#question-media-context');
+    const contextImage = $('#question-context-image');
+    const landscapeFallback = $('#question-fallback-landscape');
+    const argentinismosFallback = $('#question-fallback-argentinismos');
     if (question.image) {
       image.src = question.image;
       image.alt = question.imageAlt || `Imagen relacionada con ${question.category}`;
+      const contextVisual = question.image.toLowerCase().includes('dique')
+        ? { src: 'assets/images/parque-el-leoncito.jpg', alt: 'Paisaje del Parque Nacional El Leoncito' }
+        : question.image.toLowerCase().includes('leoncito')
+          ? { src: 'assets/images/dique-ullum.jpg', alt: 'Vista del dique y embalse de Ullum' }
+          : { src: 'assets/images/dique-ullum.jpg', alt: 'Vista del dique y embalse de Ullum' };
+      contextImage.src = contextVisual.src;
+      contextImage.alt = contextVisual.alt;
+      mediaContext.classList.remove('is-hidden');
       media.classList.remove('is-placeholder');
+      landscapeFallback.classList.add('is-hidden');
+      argentinismosFallback.classList.add('is-hidden');
     } else {
       image.removeAttribute('src');
       image.alt = '';
+      contextImage.removeAttribute('src');
+      contextImage.alt = '';
+      mediaContext.classList.add('is-hidden');
       media.classList.add('is-placeholder');
+      landscapeFallback.classList.toggle('is-hidden', question.category === 'Argentinismos');
+      argentinismosFallback.classList.toggle('is-hidden', question.category !== 'Argentinismos');
     }
     const feedback = $('#feedback');
     feedback.className = 'feedback feedback-pending';
@@ -148,7 +168,23 @@
   $('#start-button').addEventListener('click', startGame);
   $('#restart-button').addEventListener('click', startGame);
   $('#next-button').addEventListener('click', async () => {
-    if (GameEngine.next(game)) renderQuestion();
-    else await showResult();
+    if (nextPending || !game?.answered) return;
+    nextPending = true;
+    const layout = $('#question-layout');
+    const nextButton = $('#next-button');
+    nextButton.disabled = true;
+    layout.classList.add('is-changing');
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      if (GameEngine.next(game)) {
+        renderQuestion();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      } else {
+        await showResult();
+      }
+    } finally {
+      layout.classList.remove('is-changing');
+      nextPending = false;
+    }
   });
 })();
