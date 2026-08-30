@@ -49,13 +49,28 @@
             <div><span class="stat-label">Racha</span><strong id="streak-text">0</strong></div>
           </div>
           <div class="progress-track" aria-hidden="true"><div id="progress-bar" class="progress-bar"></div></div>
-          <p id="category-text" class="category"></p>
-          <h2 id="question-heading" class="question"></h2>
-          <p id="hint-text" class="hint is-hidden"></p>
-          <figure id="question-media" class="question-media"><img id="question-image" src="" alt="" /><span class="question-media-placeholder" aria-hidden="true">Imagen de la pregunta</span></figure>
-          <div id="answers" class="answers" role="group" aria-label="Opciones de respuesta"></div>
-          <div id="feedback" class="feedback feedback-pending" aria-live="assertive"><span>Elegí una opción para ver el resultado.</span></div>
-          <button id="next-button" class="button button-primary" type="button" disabled>Respondé para continuar</button>
+          <div id="question-layout" class="question-layout">
+            <figure id="question-media" class="question-media">
+              <img id="question-image" src="" alt="" />
+              <div id="question-fallback-landscape" class="question-fallback question-fallback-landscape" aria-hidden="true">
+                <img src="assets/images/ischigualasto-hero.jpg" alt="" />
+                <img src="assets/images/parque-el-leoncito.jpg" alt="" />
+                <img src="assets/images/dique-ullum.jpg" alt="" />
+                <span>San Juan</span>
+              </div>
+              <div id="question-fallback-argentinismos" class="question-fallback question-fallback-argentinismos is-hidden" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </figure>
+            <div class="question-content">
+              <p id="category-text" class="category"></p>
+              <h2 id="question-heading" class="question"></h2>
+              <p id="hint-text" class="hint is-hidden"></p>
+              <div id="answers" class="answers" role="group" aria-label="Opciones de respuesta"></div>
+              <div id="feedback" class="feedback feedback-pending" aria-live="assertive"><span>Elegí una opción para ver el resultado.</span></div>
+              <button id="next-button" class="button button-primary" type="button" disabled>Respondé para continuar</button>
+            </div>
+          </div>
         </section>
 
         <section id="result-screen" class="screen is-hidden" aria-labelledby="result-heading">

@@ -36,14 +36,20 @@
     hint.classList.toggle('is-hidden', !question.hint);
     const media = $('#question-media');
     const image = $('#question-image');
+    const landscapeFallback = $('#question-fallback-landscape');
+    const argentinismosFallback = $('#question-fallback-argentinismos');
     if (question.image) {
       image.src = question.image;
       image.alt = question.imageAlt || `Imagen relacionada con ${question.category}`;
       media.classList.remove('is-placeholder');
+      landscapeFallback.classList.add('is-hidden');
+      argentinismosFallback.classList.add('is-hidden');
     } else {
       image.removeAttribute('src');
       image.alt = '';
       media.classList.add('is-placeholder');
+      landscapeFallback.classList.toggle('is-hidden', question.category === 'Argentinismos');
+      argentinismosFallback.classList.toggle('is-hidden', question.category !== 'Argentinismos');
     }
     const feedback = $('#feedback');
     feedback.className = 'feedback feedback-pending';
@@ -148,7 +154,14 @@
   $('#start-button').addEventListener('click', startGame);
   $('#restart-button').addEventListener('click', startGame);
   $('#next-button').addEventListener('click', async () => {
-    if (GameEngine.next(game)) renderQuestion();
-    else await showResult();
+    const layout = $('#question-layout');
+    layout.classList.add('is-changing');
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    if (GameEngine.next(game)) {
+      renderQuestion();
+      requestAnimationFrame(() => layout.classList.remove('is-changing'));
+    } else {
+      await showResult();
+    }
   });
 })();
