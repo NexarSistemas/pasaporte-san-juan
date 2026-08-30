@@ -3,6 +3,7 @@
   const screens = { welcome: $('#welcome-screen'), game: $('#game-screen'), result: $('#result-screen') };
   let game;
   let answerPending = false;
+  let nextPending = false;
 
   const showScreen = (name) => Object.entries(screens).forEach(([key, element]) => element.classList.toggle('is-hidden', key !== name));
   const getLevel = (correctAnswers) => GAME_CONFIG.resultLevels.find((level) => correctAnswers >= level.minCorrect);
@@ -154,14 +155,23 @@
   $('#start-button').addEventListener('click', startGame);
   $('#restart-button').addEventListener('click', startGame);
   $('#next-button').addEventListener('click', async () => {
+    if (nextPending || !game?.answered) return;
+    nextPending = true;
     const layout = $('#question-layout');
+    const nextButton = $('#next-button');
+    nextButton.disabled = true;
     layout.classList.add('is-changing');
-    await new Promise((resolve) => setTimeout(resolve, 180));
-    if (GameEngine.next(game)) {
-      renderQuestion();
-      requestAnimationFrame(() => layout.classList.remove('is-changing'));
-    } else {
-      await showResult();
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      if (GameEngine.next(game)) {
+        renderQuestion();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      } else {
+        await showResult();
+      }
+    } finally {
+      layout.classList.remove('is-changing');
+      nextPending = false;
     }
   });
 })();
