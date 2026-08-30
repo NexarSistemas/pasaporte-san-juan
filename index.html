@@ -52,10 +52,10 @@
           <p id="category-text" class="category"></p>
           <h2 id="question-heading" class="question"></h2>
           <p id="hint-text" class="hint is-hidden"></p>
-          <figure id="question-media" class="question-media is-hidden"><img id="question-image" src="" alt="" /></figure>
+          <figure id="question-media" class="question-media"><img id="question-image" src="" alt="" /><span class="question-media-placeholder" aria-hidden="true">Imagen de la pregunta</span></figure>
           <div id="answers" class="answers" role="group" aria-label="Opciones de respuesta"></div>
-          <div id="feedback" class="feedback is-hidden" aria-live="assertive"></div>
-          <button id="next-button" class="button button-primary is-hidden" type="button">Siguiente pregunta <span aria-hidden="true">→</span></button>
+          <div id="feedback" class="feedback feedback-pending" aria-live="assertive"><span>Elegí una opción para ver el resultado.</span></div>
+          <button id="next-button" class="button button-primary" type="button" disabled>Respondé para continuar</button>
         </section>
 
         <section id="result-screen" class="screen is-hidden" aria-labelledby="result-heading">

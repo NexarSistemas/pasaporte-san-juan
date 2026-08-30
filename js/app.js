@@ -39,14 +39,18 @@
     if (question.image) {
       image.src = question.image;
       image.alt = question.imageAlt || `Imagen relacionada con ${question.category}`;
-      media.classList.remove('is-hidden');
+      media.classList.remove('is-placeholder');
     } else {
       image.removeAttribute('src');
       image.alt = '';
-      media.classList.add('is-hidden');
+      media.classList.add('is-placeholder');
     }
-    $('#feedback').className = 'feedback is-hidden';
-    $('#next-button').classList.add('is-hidden');
+    const feedback = $('#feedback');
+    feedback.className = 'feedback feedback-pending';
+    feedback.innerHTML = '<span>Elegí una opción para ver el resultado.</span>';
+    const nextButton = $('#next-button');
+    nextButton.disabled = true;
+    nextButton.textContent = 'Respondé para continuar';
     const answers = $('#answers');
     answers.innerHTML = '';
     question.answers.forEach((answer, index) => {
@@ -83,7 +87,8 @@
       const points = outcome.correct ? ` +${outcome.earned} puntos.` : ' La racha vuelve a cero.';
       feedback.innerHTML = `<strong>${outcome.correct ? '¡Respuesta correcta!' : 'No era esa respuesta.'}</strong><p>${outcome.correct ? points : `La respuesta correcta era: <b>${outcome.correctAnswerText}</b>.${points}`}</p><p>${outcome.question.explanation}</p>`;
       const nextButton = $('#next-button');
-      nextButton.classList.remove('is-hidden');
+      nextButton.disabled = false;
+      nextButton.innerHTML = 'Siguiente pregunta <span aria-hidden="true">→</span>';
       nextButton.focus();
     } catch (error) {
       console.error('No se pudo registrar la respuesta', error);
