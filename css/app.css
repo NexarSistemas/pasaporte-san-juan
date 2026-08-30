@@ -15,6 +15,8 @@ button { font:inherit; } button:focus-visible,a:focus-visible { outline:3px soli
 .question-columns { display:grid; grid-template-columns:minmax(300px,.78fr) minmax(0,1.55fr); gap:clamp(22px,4vw,42px); align-items:start; }
 .question-media { height:clamp(210px,18vw,230px); margin:0; }
 .question-media img { width:100%; height:100%; object-fit:cover; }
+.question-media-context { position:absolute; right:10px; bottom:10px; z-index:1; width:34%; height:42%; overflow:hidden; border:3px solid var(--white); border-radius:10px; box-shadow:0 6px 14px #142a3a33; }
+.question-media-context img { display:block; width:100%; height:100%; object-fit:cover; }
 .question-media.is-placeholder .question-fallback img { display:block; }
 .question-fallback { position:absolute; inset:0; overflow:hidden; }
 .question-fallback-landscape { display:grid; grid-template-columns:1.2fr 1fr; grid-template-rows:1fr 1fr; gap:3px; background:var(--sky); }
@@ -33,12 +35,14 @@ button { font:inherit; } button:focus-visible,a:focus-visible { outline:3px soli
 .question-fallback-argentinismos span { font-size:0; }
 .question-fallback-argentinismos span::before { font-size:.8rem; }
 .question-content { min-width:0; }
-.feedback { min-height:clamp(84px,10vw,112px); }
+.feedback { min-height:129px; }
 @media (max-width:680px) {
   .screen#game-screen { min-height:unset; }
   .question-header { min-height:0; }
   .question-columns { grid-template-columns:1fr; gap:20px; }
   .question-media { height:clamp(165px,46vw,205px); }
+  .question-media-context { right:8px; bottom:8px; width:38%; height:40%; border-width:2px; }
+  .feedback { min-height:156px; }
   .question-content { display:contents; }
   .question-media { order:0; }
   .question-content .answers { order:4; }
