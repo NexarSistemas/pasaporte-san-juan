@@ -1,7 +1,7 @@
 const AdminQuestions = (() => {
   const state = { questions: [], selected: null };
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, activo, fuente, url_fuente, observaciones_revision, estado_editorial, revisado_at, publicado_at, categorias(nombre)';
-  const statusLabel = { borrador: 'Borrador', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada' };
+  const statusLabel = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
 
   const byId = (id) => document.querySelector(id);
   const optionalValue = (value) => value.trim() || null;
@@ -91,7 +91,7 @@ const AdminQuestions = (() => {
     byId('#pista').value = question.pista || '';
     byId('#explicacion').value = question.explicacion || '';
     byId('#dificultad').value = question.dificultad;
-    byId('#estado-editorial').value = question.estado_editorial || 'borrador';
+    byId('#estado-editorial').value = question.estado_editorial || 'pendiente';
     byId('#fuente').value = question.fuente || '';
     byId('#url-fuente').value = question.url_fuente || '';
     byId('#observaciones-revision').value = question.observaciones_revision || '';
