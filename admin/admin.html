@@ -29,6 +29,7 @@
         <p id="csv-message" class="message" role="status" aria-live="polite"></p>
         <div id="csv-results" hidden>
           <button id="csv-compare-button" class="button button-secondary" type="button" hidden>Comprobar contra Supabase</button>
+          <button id="csv-import-button" class="button button-primary" type="button" hidden>Importar preguntas</button>
           <dl class="import-summary" aria-label="Resumen de validación">
             <div><dt>Filas leídas</dt><dd id="csv-total-rows">0</dd></div>
             <div><dt>Filas válidas</dt><dd id="csv-valid-rows">0</dd></div>
@@ -41,6 +42,11 @@
             <div><dt>Categorías no encontradas</dt><dd id="csv-missing-category-rows">0</dd></div>
             <div><dt>Posibles duplicados</dt><dd id="csv-duplicate-rows">0</dd></div>
           </dl>
+          <div id="csv-import-status" class="import-status" hidden aria-live="polite">
+            <p id="csv-import-progress"></p>
+            <p id="csv-import-summary"></p>
+            <div id="csv-import-details" class="import-errors" hidden></div>
+          </div>
           <div id="csv-errors" class="import-errors" hidden aria-live="polite"></div>
           <div class="table-wrap">
             <table>

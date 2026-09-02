@@ -85,6 +85,8 @@ const AdminCsvImport = (() => {
   const comparisonLabel = (comparison) => {
     if (!comparison) return { text: 'Pendiente', className: 'import-comparison-pending' };
     if (comparison.status === 'lista_para_importar') return { text: 'Lista para importar', className: 'import-comparison-ready' };
+    if (comparison.status === 'importada') return { text: 'Importada', className: 'import-comparison-ready' };
+    if (comparison.status === 'omitida') return { text: 'Omitida: se detectó un duplicado al importar', className: 'import-comparison-warning' };
     if (comparison.status === 'categoria_no_encontrada') return { text: 'Categoría no encontrada', className: 'import-comparison-warning' };
     return { text: `Posible duplicado: ${comparison.duplicateReasons.join(' y ')}`, className: 'import-comparison-warning' };
   };
@@ -101,6 +103,16 @@ const AdminCsvImport = (() => {
     byId('#csv-missing-category-rows').textContent = comparisons.filter((comparison) => comparison.status === 'categoria_no_encontrada').length;
     byId('#csv-duplicate-rows').textContent = comparisons.filter((comparison) => comparison.status === 'posible_duplicado').length;
     summary.hidden = false;
+  };
+
+  const readyRows = () => state.rows.filter((row) => row.comparison?.status === 'lista_para_importar');
+
+  const resetImportStatus = () => {
+    byId('#csv-import-status').hidden = true;
+    byId('#csv-import-progress').textContent = '';
+    byId('#csv-import-summary').textContent = '';
+    byId('#csv-import-details').replaceChildren();
+    byId('#csv-import-details').hidden = true;
   };
 
   const renderResults = ({ rows, emptyRows, structuralError }) => {
@@ -132,6 +144,9 @@ const AdminCsvImport = (() => {
     });
     errors.hidden = !invalidRows.length;
     renderComparisonSummary(validRows);
+
+    const importButton = byId('#csv-import-button');
+    importButton.hidden = !readyRows().length;
 
     validRows.forEach((row) => {
       const values = row.values;
@@ -208,6 +223,8 @@ const AdminCsvImport = (() => {
   const processFile = async (file) => {
     byId('#csv-results').hidden = true;
     byId('#csv-compare-button').hidden = true;
+    byId('#csv-import-button').hidden = true;
+    resetImportStatus();
     state.rows = [];
     state.emptyRows = 0;
     if (!file) return;
@@ -269,12 +286,82 @@ const AdminCsvImport = (() => {
     setMessage(invalidRows ? 'Se encontraron filas con errores. Revisá el detalle antes de continuar.' : 'Archivo validado correctamente.', !invalidRows);
   };
 
+  const importRows = async () => {
+    const rows = readyRows();
+    if (!rows.length) return;
+    const total = rows.length;
+    if (!window.confirm(`Se importarán ${total} pregunta${total === 1 ? '' : 's'} como pendientes. Los posibles duplicados y las categorías no encontradas quedan excluidos. ¿Deseás continuar?`)) return;
+
+    const button = byId('#csv-import-button');
+    const compareButton = byId('#csv-compare-button');
+    const status = byId('#csv-import-status');
+    const progress = byId('#csv-import-progress');
+    const summary = byId('#csv-import-summary');
+    const details = byId('#csv-import-details');
+    const results = { imported: [], skipped: [], errors: [] };
+    button.disabled = true;
+    compareButton.disabled = true;
+    status.hidden = false;
+    details.replaceChildren();
+    details.hidden = true;
+    setMessage('Importando preguntas…');
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      progress.textContent = `${index + 1} de ${total}`;
+      const values = row.values;
+      try {
+        const { data, error } = await AdminAuth.client.rpc('importar_pregunta_admin', {
+          p_codigo_origen: values.codigo_origen || null,
+          p_categoria_id: row.comparison.category.id,
+          p_texto: values.texto,
+          p_pista: values.pista || null,
+          p_explicacion: values.explicacion || null,
+          p_dificultad: values.dificultad || 'media',
+          p_fuente: values.fuente || null,
+          p_url_fuente: values.url_fuente || null,
+          p_respuesta_correcta: values.respuesta_correcta,
+          p_respuesta_2: values.respuesta_2,
+          p_respuesta_3: values.respuesta_3,
+          p_respuesta_4: values.respuesta_4
+        });
+        if (error?.code === '23505') {
+          row.comparison.status = 'omitida';
+          results.skipped.push(row);
+        } else if (error || !data?.ok) {
+          results.errors.push({ rowNumber: row.rowNumber, message: error?.message || data?.mensaje || 'La RPC no confirmó la importación.' });
+        } else {
+          row.comparison.status = 'importada';
+          results.imported.push(row);
+        }
+      } catch (_) {
+        results.errors.push({ rowNumber: row.rowNumber, message: 'No fue posible comunicarse con Supabase.' });
+      }
+    }
+
+    renderResults({ rows: state.rows, emptyRows: state.emptyRows });
+    progress.textContent = `${total} de ${total}`;
+    summary.textContent = `${total} preparadas · ${results.imported.length} importadas · ${results.skipped.length} omitidas · ${results.errors.length} errores`;
+    results.errors.forEach((result) => {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `Fila ${result.rowNumber}: ${result.message}`;
+      details.append(paragraph);
+    });
+    details.hidden = !results.errors.length;
+    setMessage(results.errors.length ? 'La importación finalizó con errores por fila.' : 'Importación completada.', !results.errors.length);
+    button.disabled = false;
+    compareButton.disabled = false;
+  };
+
   const init = () => {
     byId('#csv-file').addEventListener('change', (event) => {
       processFile(event.target.files[0]).catch(() => setMessage('No fue posible leer el archivo CSV.'));
     });
     byId('#csv-compare-button').addEventListener('click', () => {
       compareRows();
+    });
+    byId('#csv-import-button').addEventListener('click', () => {
+      importRows();
     });
   };
 
