@@ -5,6 +5,7 @@ const AdminCsvImport = (() => {
   ];
   const requiredColumns = ['categoria', 'texto', 'respuesta_correcta', 'respuesta_2', 'respuesta_3', 'respuesta_4'];
   const validDifficulties = new Set(['facil', 'media', 'dificil']);
+  const state = { rows: [], emptyRows: 0 };
 
   const byId = (id) => document.querySelector(id);
   const valueOrEmpty = (value) => (value || '').trim();
@@ -53,6 +54,8 @@ const AdminCsvImport = (() => {
   };
 
   const isEmptyRow = (row) => row.every((value) => !valueOrEmpty(value));
+  const normalizeCategory = (value) => valueOrEmpty(value).toLowerCase();
+  const normalizeQuestionText = (value) => valueOrEmpty(value).toLowerCase().replace(/\s+/g, ' ');
 
   const validateRow = (values, rowNumber) => {
     const errors = [];
@@ -77,6 +80,27 @@ const AdminCsvImport = (() => {
     cell.textContent = value || '—';
     if (className) cell.className = className;
     return cell;
+  };
+
+  const comparisonLabel = (comparison) => {
+    if (!comparison) return { text: 'Pendiente', className: 'import-comparison-pending' };
+    if (comparison.status === 'lista_para_importar') return { text: 'Lista para importar', className: 'import-comparison-ready' };
+    if (comparison.status === 'categoria_no_encontrada') return { text: 'Categoría no encontrada', className: 'import-comparison-warning' };
+    return { text: `Posible duplicado: ${comparison.duplicateReasons.join(' y ')}`, className: 'import-comparison-warning' };
+  };
+
+  const renderComparisonSummary = (validRows) => {
+    const summary = byId('#csv-comparison-summary');
+    const comparisons = validRows.map((row) => row.comparison).filter(Boolean);
+    if (comparisons.length !== validRows.length) {
+      summary.hidden = true;
+      return;
+    }
+    byId('#csv-compared-rows').textContent = validRows.length;
+    byId('#csv-ready-rows').textContent = comparisons.filter((comparison) => comparison.status === 'lista_para_importar').length;
+    byId('#csv-missing-category-rows').textContent = comparisons.filter((comparison) => comparison.status === 'categoria_no_encontrada').length;
+    byId('#csv-duplicate-rows').textContent = comparisons.filter((comparison) => comparison.status === 'posible_duplicado').length;
+    summary.hidden = false;
   };
 
   const renderResults = ({ rows, emptyRows, structuralError }) => {
@@ -107,26 +131,85 @@ const AdminCsvImport = (() => {
       errors.append(paragraph);
     });
     errors.hidden = !invalidRows.length;
+    renderComparisonSummary(validRows);
 
     validRows.forEach((row) => {
       const values = row.values;
+      const comparison = comparisonLabel(row.comparison);
       const tableRow = document.createElement('tr');
       tableRow.append(
         createCell(String(row.rowNumber)),
         createCell(values.categoria),
+        createCell(row.comparison?.category?.nombre),
         createCell(values.texto, 'question-cell'),
         createCell(values.respuesta_correcta),
         createCell([values.respuesta_2, values.respuesta_3, values.respuesta_4].join(' · '), 'import-other-answers'),
         createCell(values.dificultad),
         createCell(values.fuente),
-        createCell('Válida', 'import-preview-valid')
+        createCell('Válida', 'import-preview-valid'),
+        createCell(comparison.text, comparison.className)
       );
       preview.append(tableRow);
     });
   };
 
+  const loadAllQuestions = async () => {
+    const pageSize = 1000;
+    const questions = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await AdminAuth.client.from('preguntas').select('codigo_origen, texto').range(from, from + pageSize - 1);
+      if (error) throw error;
+      questions.push(...data);
+      if (data.length < pageSize) return questions;
+      from += pageSize;
+    }
+  };
+
+  const compareRows = async () => {
+    const validRows = state.rows.filter((row) => !row.errors.length);
+    if (!validRows.length) return;
+
+    const button = byId('#csv-compare-button');
+    button.disabled = true;
+    setMessage('Comprobando categorías y posibles duplicados…');
+    try {
+      const [{ data: categories, error: categoryError }, questions] = await Promise.all([
+        AdminAuth.client.from('categorias').select('id, nombre'),
+        loadAllQuestions()
+      ]);
+      if (categoryError) throw categoryError;
+      const categoriesByName = new Map(categories.map((category) => [normalizeCategory(category.nombre), category]));
+      const questionsByCode = new Set(questions.map((question) => question.codigo_origen).filter(Boolean));
+      const questionsByText = new Set(questions.map((question) => normalizeQuestionText(question.texto)));
+
+      validRows.forEach((row) => {
+        const category = categoriesByName.get(normalizeCategory(row.values.categoria));
+        const duplicateReasons = [];
+        if (row.values.codigo_origen && questionsByCode.has(row.values.codigo_origen)) duplicateReasons.push('codigo_origen');
+        if (questionsByText.has(normalizeQuestionText(row.values.texto))) duplicateReasons.push('texto');
+        row.comparison = {
+          category,
+          duplicateReasons,
+          status: !category
+            ? 'categoria_no_encontrada'
+            : duplicateReasons.length ? 'posible_duplicado' : 'lista_para_importar'
+        };
+      });
+      renderResults({ rows: state.rows, emptyRows: state.emptyRows });
+      setMessage('Comprobación contra Supabase completada.', true);
+    } catch (_) {
+      setMessage('No fue posible comprobar el CSV contra Supabase. La previsualización local se conserva.');
+    } finally {
+      button.disabled = false;
+    }
+  };
+
   const processFile = async (file) => {
     byId('#csv-results').hidden = true;
+    byId('#csv-compare-button').hidden = true;
+    state.rows = [];
+    state.emptyRows = 0;
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setMessage('Seleccioná un archivo con extensión .csv.');
@@ -178,7 +261,10 @@ const AdminCsvImport = (() => {
       validatedRows.push(validateRow(values, index + 2));
       return validatedRows;
     }, []);
+    state.rows = rows;
+    state.emptyRows = emptyRows;
     renderResults({ rows, emptyRows });
+    byId('#csv-compare-button').hidden = !rows.some((row) => !row.errors.length);
     const invalidRows = rows.filter((row) => row.errors.length).length;
     setMessage(invalidRows ? 'Se encontraron filas con errores. Revisá el detalle antes de continuar.' : 'Archivo validado correctamente.', !invalidRows);
   };
@@ -186,6 +272,9 @@ const AdminCsvImport = (() => {
   const init = () => {
     byId('#csv-file').addEventListener('change', (event) => {
       processFile(event.target.files[0]).catch(() => setMessage('No fue posible leer el archivo CSV.'));
+    });
+    byId('#csv-compare-button').addEventListener('click', () => {
+      compareRows();
     });
   };
 

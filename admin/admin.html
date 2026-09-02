@@ -28,16 +28,23 @@
         </label>
         <p id="csv-message" class="message" role="status" aria-live="polite"></p>
         <div id="csv-results" hidden>
+          <button id="csv-compare-button" class="button button-secondary" type="button" hidden>Comprobar contra Supabase</button>
           <dl class="import-summary" aria-label="Resumen de validación">
             <div><dt>Filas leídas</dt><dd id="csv-total-rows">0</dd></div>
             <div><dt>Filas válidas</dt><dd id="csv-valid-rows">0</dd></div>
             <div><dt>Filas con errores</dt><dd id="csv-invalid-rows">0</dd></div>
             <div><dt>Filas vacías omitidas</dt><dd id="csv-empty-rows">0</dd></div>
           </dl>
+          <dl id="csv-comparison-summary" class="import-summary" hidden aria-label="Resumen de comprobación contra Supabase">
+            <div><dt>Filas válidas procesadas</dt><dd id="csv-compared-rows">0</dd></div>
+            <div><dt>Listas para importar</dt><dd id="csv-ready-rows">0</dd></div>
+            <div><dt>Categorías no encontradas</dt><dd id="csv-missing-category-rows">0</dd></div>
+            <div><dt>Posibles duplicados</dt><dd id="csv-duplicate-rows">0</dd></div>
+          </dl>
           <div id="csv-errors" class="import-errors" hidden aria-live="polite"></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Fila</th><th>Categoría</th><th>Pregunta</th><th>Respuesta correcta</th><th>Otras respuestas</th><th>Dificultad</th><th>Fuente</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Fila</th><th>Categoría</th><th>Categoría resuelta</th><th>Pregunta</th><th>Respuesta correcta</th><th>Otras respuestas</th><th>Dificultad</th><th>Fuente</th><th>Validación CSV</th><th>Comparación</th></tr></thead>
               <tbody id="csv-preview-body"></tbody>
             </table>
           </div>
