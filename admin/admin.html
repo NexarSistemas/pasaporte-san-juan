@@ -16,6 +16,34 @@
       <button id="logout-button" class="button button-secondary" type="button">Cerrar sesión</button>
     </header>
     <main class="admin-shell">
+      <section class="panel" aria-labelledby="csv-import-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="csv-import-title">Previsualizar importación CSV</h2>
+            <p class="muted">El archivo se procesa solamente en este navegador. Esta etapa no crea ni modifica preguntas.</p>
+          </div>
+        </div>
+        <label for="csv-file">Archivo CSV UTF-8
+          <input id="csv-file" type="file" accept=".csv,text/csv" />
+        </label>
+        <p id="csv-message" class="message" role="status" aria-live="polite"></p>
+        <div id="csv-results" hidden>
+          <dl class="import-summary" aria-label="Resumen de validación">
+            <div><dt>Filas leídas</dt><dd id="csv-total-rows">0</dd></div>
+            <div><dt>Filas válidas</dt><dd id="csv-valid-rows">0</dd></div>
+            <div><dt>Filas con errores</dt><dd id="csv-invalid-rows">0</dd></div>
+            <div><dt>Filas vacías omitidas</dt><dd id="csv-empty-rows">0</dd></div>
+          </dl>
+          <div id="csv-errors" class="import-errors" hidden aria-live="polite"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fila</th><th>Categoría</th><th>Pregunta</th><th>Respuesta correcta</th><th>Otras respuestas</th><th>Dificultad</th><th>Fuente</th><th>Estado</th></tr></thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="panel" aria-labelledby="questions-title">
         <div class="panel-heading">
           <div>
@@ -100,5 +128,6 @@
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/admin.js"></script>
+    <script src="js/import-csv.js"></script>
   </body>
 </html>
