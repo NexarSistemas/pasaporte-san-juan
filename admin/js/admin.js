@@ -1,6 +1,6 @@
 const AdminQuestions = (() => {
   const state = { questions: [], selected: null };
-  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, categorias(nombre), respuestas(id, texto, es_correcta)';
+  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const byId = (id) => document.querySelector(id);
   const optionalValue = (value) => value.trim() || null;
   const categoryName = (question) => Array.isArray(question.categorias) ? question.categorias[0]?.nombre : question.categorias?.nombre;
@@ -33,7 +33,7 @@ const AdminQuestions = (() => {
     body.replaceChildren();
     if (!state.questions.length) {
       const cell = document.createElement('td');
-      cell.colSpan = 8;
+      cell.colSpan = 9;
       cell.textContent = 'No hay preguntas para los filtros seleccionados.';
       const row = document.createElement('tr');
       row.append(cell);
@@ -44,13 +44,13 @@ const AdminQuestions = (() => {
       const row = document.createElement('tr');
       const answers = answersFor(question);
       const status = question.estado_editorial === 'publicada' ? 'Publicada' : 'Pendiente';
-      const values = [categoryName(question) || 'Sin categoría', question.texto, answers.correct?.texto || 'Respuesta inválida', answers.incorrect.map((answer) => answer.texto).join(' · ') || 'Respuestas inválidas', question.dificultad, question.fuente || '—', status];
+      const values = [categoryName(question) || 'Sin categoría', question.texto, answers.correct?.texto || 'Respuesta inválida', answers.incorrect.map((answer) => answer.texto).join(' · ') || 'Respuestas inválidas', question.concepto_id || '—', question.dificultad, question.fuente || '—', status];
       values.forEach((value, index) => {
         const cell = document.createElement('td');
         cell.textContent = value;
         if (index === 1) cell.className = 'question-cell';
         if (index === 3) cell.className = 'import-other-answers';
-        if (index === 6) {
+        if (index === 7) {
           const tag = document.createElement('span');
           tag.className = 'status';
           tag.textContent = value;
@@ -68,6 +68,12 @@ const AdminQuestions = (() => {
         publish.type = 'button'; publish.className = 'button button-primary row-button'; publish.textContent = 'Publicar';
         publish.addEventListener('click', () => publishQuestion(question.id, publish));
         action.append(document.createTextNode(' '), publish);
+      }
+      if (question.estado_editorial === 'pendiente') {
+        const review = document.createElement('button');
+        review.type = 'button'; review.className = 'button button-secondary row-button'; review.textContent = 'Revisar similitud';
+        review.addEventListener('click', () => { openEditor(question.id); reviewSimilarity(); });
+        action.append(document.createTextNode(' '), review);
       }
       row.append(action);
       body.append(row);
@@ -105,6 +111,7 @@ const AdminQuestions = (() => {
     byId('#explicacion').value = question.explicacion || '';
     byId('#dificultad').value = question.dificultad;
     byId('#fuente').value = question.fuente || '';
+    byId('#concepto-id').value = question.concepto_id || '';
     byId('#url-fuente').value = question.url_fuente || '';
     byId('#observaciones-revision').value = question.observaciones_revision || '';
     byId('#respuesta-correcta').value = answers.correct.texto;
@@ -113,11 +120,95 @@ const AdminQuestions = (() => {
     byId('#editor-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const candidateView = (candidate) => {
+    const answers = answersFor(candidate);
+    const container = document.createElement('article');
+    container.className = 'similarity-candidate';
+    const title = document.createElement('h4');
+    title.textContent = candidate.texto;
+    const meta = document.createElement('p');
+    meta.className = 'similarity-meta';
+    meta.textContent = `${categoryName(candidate) || 'Sin categoría'} · ${candidate.estado_editorial === 'publicada' ? 'Publicada' : 'Pendiente'} · Concepto: ${candidate.concepto_id || 'sin asignar'}`;
+    const answer = document.createElement('p');
+    answer.textContent = `Respuesta correcta: ${answers.correct?.texto || 'Sin respuesta válida'}`;
+    const score = document.createElement('p');
+    score.className = 'similarity-score';
+    score.textContent = `${SimilarityReview.labelFor(candidate.score)} · ${candidate.score}%`;
+    container.append(title, meta, answer, score);
+    const actions = document.createElement('div');
+    actions.className = 'similarity-actions';
+    if (candidate.concepto_id) {
+      const reuse = document.createElement('button');
+      reuse.type = 'button'; reuse.className = 'button button-secondary'; reuse.textContent = 'Reutilizar concepto';
+      reuse.addEventListener('click', () => assignConcept(candidate.concepto_id)
+        .catch((error) => setMessage('#similarity-message', error.message || 'No fue posible reutilizar el concepto.')));
+      actions.append(reuse);
+    } else if (!state.selected.concepto_id) {
+      const group = document.createElement('button');
+      group.type = 'button'; group.className = 'button button-secondary'; group.textContent = 'Agrupar como variante';
+      group.addEventListener('click', () => groupQuestions(candidate.id));
+      actions.append(group);
+    }
+    if (actions.childElementCount) container.append(actions);
+    return container;
+  };
+
+  const reviewSimilarity = async () => {
+    if (!state.selected) return;
+    const result = byId('#similarity-results');
+    setMessage('#similarity-message', 'Buscando coincidencias…');
+    result.hidden = true; result.replaceChildren();
+    try {
+      const { data, error } = await AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
+      if (error) throw error;
+      const selectedAnswers = answersFor(state.selected);
+      const candidates = SimilarityReview.rankCandidates(
+        { ...state.selected, correctAnswer: selectedAnswers.correct?.texto || '' },
+        data.map((candidate) => ({ ...candidate, correctAnswer: answersFor(candidate).correct?.texto || '' }))
+      );
+      if (!candidates.length) {
+        setMessage('#similarity-message', 'Sin coincidencias relevantes. La decisión editorial sigue siendo manual.', true);
+        return;
+      }
+      candidates.forEach((candidate) => result.append(candidateView(candidate)));
+      result.hidden = false;
+      setMessage('#similarity-message', `${candidates.length} coincidencia${candidates.length === 1 ? '' : 's'} relevante${candidates.length === 1 ? '' : 's'}; revisá el contenido antes de decidir.`, true);
+    } catch (error) {
+      setMessage('#similarity-message', error.message || 'No fue posible revisar similitud.');
+    }
+  };
+
+  const assignConcept = async (conceptId) => {
+    if (!state.selected) return;
+    const { data, error } = await AdminAuth.client.rpc('asignar_concepto_pregunta_admin', { p_pregunta_id: state.selected.id, p_concepto_id: conceptId || null });
+    if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
+    state.selected.concepto_id = data.concepto_id;
+    byId('#concepto-id').value = data.concepto_id || '';
+    await loadQuestions();
+    setMessage('#save-message', data.mensaje, true);
+  };
+
+  const groupQuestions = async (candidateId) => {
+    if (!state.selected) return;
+    try {
+      const { data, error } = await AdminAuth.client.rpc('agrupar_preguntas_por_concepto_admin', { p_pregunta_id: state.selected.id, p_candidata_id: candidateId });
+      if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
+      state.selected.concepto_id = data.concepto_id;
+      byId('#concepto-id').value = data.concepto_id;
+      await loadQuestions();
+      setMessage('#similarity-message', data.mensaje, true);
+      await reviewSimilarity();
+    } catch (error) {
+      setMessage('#similarity-message', error.message || 'No fue posible agrupar las preguntas.');
+    }
+  };
+
   const saveQuestion = async (event) => {
     event.preventDefault();
     if (!state.selected) return;
     const button = byId('#save-button');
     const answers = answersFor(state.selected);
+    const requestedConceptId = byId('#concepto-id').value.trim() || null;
     button.disabled = true;
     setMessage('#save-message', '');
     try {
@@ -132,6 +223,7 @@ const AdminQuestions = (() => {
       const selectedId = state.selected.id;
       await loadQuestions();
       openEditor(selectedId);
+      if (requestedConceptId !== (state.selected.concepto_id || null)) await assignConcept(requestedConceptId);
       setMessage('#save-message', `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, true);
     } catch (error) {
       setMessage('#save-message', error.message || 'No fue posible guardar los cambios.');
@@ -164,6 +256,7 @@ const AdminQuestions = (() => {
     byId('#status-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
     byId('#close-editor').addEventListener('click', () => { byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);
+    byId('#review-similarity-button').addEventListener('click', () => reviewSimilarity());
     try { await loadCategories(); await loadQuestions(); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.'); }
   };
 
