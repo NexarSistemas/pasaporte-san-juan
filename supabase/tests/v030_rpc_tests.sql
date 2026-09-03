@@ -1,4 +1,4 @@
--- Ejecutar en una base con las migraciones y seed v0.3.0. Todo queda revertido.
+-- Ejecutar en una base con todas las migraciones y el seed actuales. Todo queda revertido.
 begin;
 
 do $tests$
@@ -21,10 +21,16 @@ declare
   v_simulacion jsonb;
   v_partidas_simuladas jsonb[] := '{}';
   v_indice integer;
+  v_banco_exacto jsonb;
+  v_banco_reducido_primera jsonb;
+  v_banco_reducido_segunda jsonb;
 begin
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
   assert jsonb_array_length(v_primera->'questions') = 10, 'La primera partida debe tener 10 preguntas';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_primera->'questions') q;
+  assert v_count = 10, 'Una partida con banco mayor al objetivo no debe duplicar pregunta_id';
   v_segunda := public.crear_partida(v_token);
   select count(*) into v_count
   from jsonb_array_elements(v_primera->'questions') a
@@ -46,8 +52,8 @@ begin
   assert jsonb_array_length(v_cuarta->'questions') = 10, 'El nuevo ciclo debe conservar 10 preguntas';
 
   -- Una pregunta nueva se prioriza aunque el jugador esté en ciclo 2.
-  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion)
-  select 'test-nueva', id, 'Pregunta nueva de prueba', 'Explicación de prueba'
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'test-nueva', id, 'Pregunta nueva de prueba', 'Explicación de prueba', 'publicada'
   from public.categorias where slug = 'destinos';
   insert into public.respuestas (pregunta_id, texto, es_correcta)
   select id, 'Correcta nueva', true from public.preguntas where codigo_origen = 'test-nueva';
@@ -103,8 +109,8 @@ begin
   -- Simulación solicitada: 100 preguntas, 10 partidas sin repetición y una 11.
   update public.preguntas set activo = false;
   for v_indice in 1..100 loop
-    insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion)
-    select format('sim-%s', v_indice), id, format('Simulación %s', v_indice), 'Simulación'
+    insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+    select format('sim-%s', v_indice), id, format('Simulación %s', v_indice), 'Simulación', 'publicada'
     from public.categorias where slug = 'destinos';
     insert into public.respuestas (pregunta_id, texto, es_correcta)
     select id, 'Correcta', true from public.preguntas where codigo_origen = format('sim-%s', v_indice);
@@ -127,6 +133,56 @@ begin
     where (select array_agg(q->>'id' order by q->>'id') from jsonb_array_elements(partida->'questions') q)
         = (select array_agg(q->>'id' order by q->>'id') from jsonb_array_elements(v_simulacion->'questions') q)
   ), 'La partida 11 no debe reconstruir una partida previa';
+
+  -- Cada partida debe usar pregunta_id únicos incluso cuando el banco sea
+  -- exactamente igual o menor que el objetivo habitual.
+  update public.preguntas set activo = false;
+  with banco_exacto as (
+    select id from public.preguntas order by codigo_origen limit 10
+  )
+  update public.preguntas set activo = true
+  where id in (select id from banco_exacto);
+  v_banco_exacto := public.crear_partida('66666666-6666-4666-8666-666666666666');
+  assert jsonb_array_length(v_banco_exacto->'questions') = 10,
+    'Un banco exactamente igual al objetivo debe incluir sus 10 preguntas';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_banco_exacto->'questions') q;
+  assert v_count = 10,
+    'Un banco exactamente igual al objetivo no debe duplicar pregunta_id';
+
+  update public.preguntas set activo = false;
+  with banco_reducido as (
+    select id from public.preguntas order by codigo_origen limit 3
+  )
+  update public.preguntas set activo = true
+  where id in (select id from banco_reducido);
+  v_banco_reducido_primera := public.crear_partida('77777777-7777-4777-8777-777777777777');
+  v_banco_reducido_segunda := public.crear_partida('77777777-7777-4777-8777-777777777777');
+  assert jsonb_array_length(v_banco_reducido_primera->'questions') = 3,
+    'Un banco menor al objetivo debe devolver todas sus preguntas únicas';
+  assert jsonb_array_length(v_banco_reducido_segunda->'questions') = 3,
+    'Una nueva partida debe conservar el máximo disponible del banco reducido';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_banco_reducido_primera->'questions') q;
+  assert v_count = 3,
+    'La primera partida con banco reducido no debe duplicar pregunta_id';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_banco_reducido_segunda->'questions') q;
+  assert v_count = 3,
+    'La segunda partida con banco reducido no debe duplicar pregunta_id';
+  select count(*) into v_count
+  from jsonb_array_elements(v_banco_reducido_primera->'questions') a
+  join jsonb_array_elements(v_banco_reducido_segunda->'questions') b on a->>'id' = b->>'id';
+  assert v_count = 3,
+    'Una pregunta puede volver a usarse en una partida nueva';
+
+  assert exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.partida_preguntas'::regclass
+      and contype = 'u'
+      and pg_get_constraintdef(oid) = 'UNIQUE (partida_id, pregunta_id)'
+  ), 'Debe mantenerse la constraint única de partida_preguntas';
 end;
 $tests$;
 

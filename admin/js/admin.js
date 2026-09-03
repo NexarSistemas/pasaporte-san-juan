@@ -121,7 +121,7 @@ const AdminQuestions = (() => {
     button.disabled = true;
     setMessage('#save-message', '');
     try {
-      const { data, error } = await AdminAuth.client.rpc('actualizar_pregunta_pendiente_admin', {
+      const { data, error } = await AdminAuth.client.rpc('actualizar_pregunta_admin', {
         p_pregunta_id: state.selected.id, p_categoria_id: byId('#editor-category').value, p_texto: byId('#texto').value.trim(), p_pista: optionalValue(byId('#pista').value), p_explicacion: byId('#explicacion').value.trim(), p_dificultad: byId('#dificultad').value, p_fuente: optionalValue(byId('#fuente').value), p_url_fuente: optionalValue(byId('#url-fuente').value), p_observaciones_revision: optionalValue(byId('#observaciones-revision').value),
         p_respuesta_correcta_id: answers.correct.id, p_respuesta_correcta: byId('#respuesta-correcta').value.trim(),
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),

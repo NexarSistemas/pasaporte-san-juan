@@ -146,6 +146,7 @@ const AdminCsvImport = (() => {
     renderComparisonSummary(validRows);
 
     const importButton = byId('#csv-import-button');
+    const comparisons = validRows.map((row) => row.comparison).filter(Boolean);
     const comparisonCompleted = comparisons.length === validRows.length && validRows.length > 0;
     importButton.hidden = !comparisonCompleted;
     importButton.disabled = !readyRows().length;
