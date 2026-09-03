@@ -1,4 +1,4 @@
-# Pasaporte San Juan v0.5.0
+# Pasaporte San Juan v0.6.0
 
 Juego educativo de preguntas sobre San Juan, construido con HTML, CSS y JavaScript vanilla y publicado en [GitHub Pages](https://pasaporte.nexarsistemas.com.ar). Supabase aporta historial y lógica sensible.
 
