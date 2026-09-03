@@ -34,6 +34,13 @@ declare
   v_partida_variantes_base uuid;
   v_partida_variantes_alterna uuid;
   v_regresion_variantes jsonb;
+  v_token_combinaciones uuid := 'aaaaaaaa-2222-4222-8222-222222222222';
+  v_jugador_combinaciones uuid;
+  v_partida_combinacion_a1 uuid;
+  v_partida_combinacion_a2 uuid;
+  v_partida_combinacion_a3 uuid;
+  v_sin_alternativa_nueva jsonb;
+  v_con_alternativa_nueva jsonb;
 begin
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
@@ -328,6 +335,97 @@ begin
     on pp.partida_id = v_partida_variantes_alterna and pp.pregunta_id::text = q->>'id';
   assert v_count < 10,
     'El fallback con variantes no debe reconstruir otra combinación previa';
+
+  -- Si A1 y A2 ya forman las dos combinaciones conocidas, no debe haber bucle.
+  -- Al agregar A3, la variante elegida debe producir una combinación nueva.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select format('combinacion-%s', n), c.id, format('Combinación %s', n), 'Prueba de combinaciones', 'publicada',
+    case n
+      when 1 then '20000000-0000-4000-8000-000000000001'::uuid
+      when 2 then '20000000-0000-4000-8000-000000000001'::uuid
+      else ('20000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
+    end
+  from public.categorias c
+  cross join generate_series(1, 11) n
+  where c.slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas
+  where codigo_origen like 'combinacion-%';
+
+  insert into public.jugadores (player_token)
+  values (v_token_combinaciones)
+  returning id into v_jugador_combinaciones;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_combinaciones, 1, 1)
+  returning id into v_partida_combinacion_a1;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_combinacion_a1, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas
+  where codigo_origen like 'combinacion-%' and codigo_origen <> 'combinacion-2';
+  update public.partidas set created_at = now() - interval '2 days'
+  where id = v_partida_combinacion_a1;
+
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_combinaciones, 2, 1)
+  returning id into v_partida_combinacion_a2;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_combinacion_a2, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas
+  where codigo_origen like 'combinacion-%' and codigo_origen <> 'combinacion-1';
+  update public.partidas set created_at = now() - interval '1 day'
+  where id = v_partida_combinacion_a2;
+
+  v_sin_alternativa_nueva := public.crear_partida(v_token_combinaciones);
+  assert jsonb_array_length(v_sin_alternativa_nueva->'questions') = 10,
+    'Dos combinaciones conocidas sin alternativa nueva no deben bloquear la partida';
+
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select 'combinacion-12', id, 'Combinación 12', 'Tercera variante', 'publicada', '20000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta combinacion-12', true
+  from public.preguntas where codigo_origen = 'combinacion-12';
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_combinaciones, 4, 2)
+  returning id into v_partida_combinacion_a3;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_combinacion_a3, id, 1
+  from public.preguntas where codigo_origen = 'combinacion-12';
+  update public.partidas set created_at = now() - interval '12 hours'
+  where id = v_partida_combinacion_a3;
+
+  v_con_alternativa_nueva := public.crear_partida(v_token_combinaciones);
+  assert jsonb_array_length(v_con_alternativa_nueva->'questions') = 10,
+    'La tercera variante debe conservar el tamaño objetivo';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_con_alternativa_nueva->'questions') q;
+  assert v_count = 10,
+    'La tercera variante no debe repetir pregunta_id';
+  select count(distinct p.concepto_id) into v_count
+  from jsonb_array_elements(v_con_alternativa_nueva->'questions') q
+  join public.preguntas p on p.id::text = q->>'id';
+  assert v_count = 10,
+    'La tercera variante debe conservar una pregunta por concepto';
+  assert exists (
+    select 1
+    from jsonb_array_elements(v_con_alternativa_nueva->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'combinacion-12'
+  ), 'La tercera variante debe producir una combinación no vista';
+  select count(*) into v_count
+  from jsonb_array_elements(v_con_alternativa_nueva->'questions') q
+  join public.partida_preguntas pp
+    on pp.partida_id = v_partida_combinacion_a1 and pp.pregunta_id::text = q->>'id';
+  assert v_count < 10,
+    'La tercera variante no debe reconstruir la combinación A1';
+  select count(*) into v_count
+  from jsonb_array_elements(v_con_alternativa_nueva->'questions') q
+  join public.partida_preguntas pp
+    on pp.partida_id = v_partida_combinacion_a2 and pp.pregunta_id::text = q->>'id';
+  assert v_count < 10,
+    'La tercera variante no debe reconstruir la combinación A2';
 
   assert exists (
     select 1

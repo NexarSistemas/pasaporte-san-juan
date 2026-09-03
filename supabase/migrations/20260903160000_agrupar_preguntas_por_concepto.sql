@@ -181,6 +181,20 @@ begin
       and alternativa.activo and alternativa.estado_editorial = 'publicada'
       and alternativa.id <> elegida.id
       and not (alternativa.id = any(v_preguntas))
+      and not exists (
+        select 1
+        from (
+          select array_agg(pp.pregunta_id order by pp.pregunta_id) as conjunto
+          from public.partida_preguntas pp
+          join public.partidas p on p.id = pp.partida_id
+          where p.jugador_id = v_jugador_id
+          group by pp.partida_id
+        ) anteriores
+        where conjunto = (
+          select array_agg(pregunta_id order by pregunta_id)
+          from unnest(array_replace(v_preguntas, elegida.id, alternativa.id)) as candidata(pregunta_id)
+        )
+      )
     order by random()
     limit 1;
 
@@ -204,6 +218,20 @@ begin
             when q.concepto_id is null then 'pregunta:' || q.id::text
             else 'concepto:' || q.concepto_id::text
           end)
+        )
+        and not exists (
+          select 1
+          from (
+            select array_agg(pp.pregunta_id order by pp.pregunta_id) as conjunto
+            from public.partida_preguntas pp
+            join public.partidas p on p.id = pp.partida_id
+            where p.jugador_id = v_jugador_id
+            group by pp.partida_id
+          ) anteriores
+          where conjunto = (
+            select array_agg(pregunta_id order by pregunta_id)
+            from unnest(array_replace(v_preguntas, v_preguntas[array_length(v_preguntas, 1)], q.id)) as candidata(pregunta_id)
+          )
         )
       order by random()
       limit 1;
