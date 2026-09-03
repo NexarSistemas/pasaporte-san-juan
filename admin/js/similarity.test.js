@@ -23,3 +23,8 @@ test('conserva una variante útil y descarta una pregunta sin coincidencias rele
   assert.deepEqual(candidates.map((candidate) => candidate.id), ['variante']);
   assert.ok(candidates[0].score >= 45 && candidates[0].score < 100);
 });
+
+test('una acción de revisión solo es válida para la pregunta revisada', () => {
+  assert.equal(SimilarityReview.isCurrentReview('pregunta-a', 'pregunta-a'), true);
+  assert.equal(SimilarityReview.isCurrentReview('pregunta-a', 'pregunta-b'), false);
+});

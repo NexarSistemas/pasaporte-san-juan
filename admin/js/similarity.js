@@ -33,8 +33,9 @@ const SimilarityReview = (() => {
     .slice(0, limit);
 
   const labelFor = (score) => score >= 90 ? 'Duplicado claro' : score >= 45 ? 'Variante posible' : 'Coincidencia baja';
+  const isCurrentReview = (reviewedQuestionId, selectedQuestionId) => reviewedQuestionId === selectedQuestionId;
 
-  return { labelFor, normalize, rankCandidates, scoreCandidate };
+  return { isCurrentReview, labelFor, normalize, rankCandidates, scoreCandidate };
 })();
 
 if (typeof module !== 'undefined') module.exports = SimilarityReview;

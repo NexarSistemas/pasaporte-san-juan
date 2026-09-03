@@ -15,6 +15,13 @@ const AdminQuestions = (() => {
     element.classList.toggle('is-success', success);
   };
 
+  const clearSimilarityReview = () => {
+    const result = byId('#similarity-results');
+    result.replaceChildren();
+    result.hidden = true;
+    setMessage('#similarity-message', '');
+  };
+
   const loadCategories = async () => {
     const { data, error } = await AdminAuth.client.from('categorias').select('id, nombre').order('nombre');
     if (error) throw error;
@@ -101,6 +108,7 @@ const AdminQuestions = (() => {
       setMessage('#list-message', 'La pregunta no tiene cuatro respuestas válidas para editar.');
       return;
     }
+    clearSimilarityReview();
     state.selected = question;
     byId('#editor-panel').hidden = false;
     byId('#editor-meta').textContent = `${categoryName(question) || 'Sin categoría'} · Estado: ${question.estado_editorial}`;
@@ -120,7 +128,7 @@ const AdminQuestions = (() => {
     byId('#editor-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const candidateView = (candidate) => {
+  const candidateView = (candidate, reviewedQuestionId) => {
     const answers = answersFor(candidate);
     const container = document.createElement('article');
     container.className = 'similarity-candidate';
@@ -140,13 +148,13 @@ const AdminQuestions = (() => {
     if (candidate.concepto_id) {
       const reuse = document.createElement('button');
       reuse.type = 'button'; reuse.className = 'button button-secondary'; reuse.textContent = 'Reutilizar concepto';
-      reuse.addEventListener('click', () => assignConcept(candidate.concepto_id)
+      reuse.addEventListener('click', () => assignConcept(candidate.concepto_id, reviewedQuestionId)
         .catch((error) => setMessage('#similarity-message', error.message || 'No fue posible reutilizar el concepto.')));
       actions.append(reuse);
-    } else if (!state.selected.concepto_id) {
+    } else {
       const group = document.createElement('button');
       group.type = 'button'; group.className = 'button button-secondary'; group.textContent = 'Agrupar como variante';
-      group.addEventListener('click', () => groupQuestions(candidate.id));
+      group.addEventListener('click', () => groupQuestions(candidate.id, reviewedQuestionId));
       actions.append(group);
     }
     if (actions.childElementCount) container.append(actions);
@@ -155,12 +163,14 @@ const AdminQuestions = (() => {
 
   const reviewSimilarity = async () => {
     if (!state.selected) return;
+    const reviewedQuestionId = state.selected.id;
     const result = byId('#similarity-results');
     setMessage('#similarity-message', 'Buscando coincidencias…');
     result.hidden = true; result.replaceChildren();
     try {
       const { data, error } = await AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
       if (error) throw error;
+      if (!SimilarityReview.isCurrentReview(reviewedQuestionId, state.selected?.id)) return;
       const selectedAnswers = answersFor(state.selected);
       const candidates = SimilarityReview.rankCandidates(
         { ...state.selected, correctAnswer: selectedAnswers.correct?.texto || '' },
@@ -170,7 +180,7 @@ const AdminQuestions = (() => {
         setMessage('#similarity-message', 'Sin coincidencias relevantes. La decisión editorial sigue siendo manual.', true);
         return;
       }
-      candidates.forEach((candidate) => result.append(candidateView(candidate)));
+      candidates.forEach((candidate) => result.append(candidateView(candidate, reviewedQuestionId)));
       result.hidden = false;
       setMessage('#similarity-message', `${candidates.length} coincidencia${candidates.length === 1 ? '' : 's'} relevante${candidates.length === 1 ? '' : 's'}; revisá el contenido antes de decidir.`, true);
     } catch (error) {
@@ -178,8 +188,10 @@ const AdminQuestions = (() => {
     }
   };
 
-  const assignConcept = async (conceptId) => {
-    if (!state.selected) return;
+  const assignConcept = async (conceptId, reviewedQuestionId) => {
+    if (!state.selected || !SimilarityReview.isCurrentReview(reviewedQuestionId, state.selected.id)) {
+      throw new Error('La revisión ya no corresponde a la pregunta abierta. Volvé a revisar similitud.');
+    }
     const { data, error } = await AdminAuth.client.rpc('asignar_concepto_pregunta_admin', { p_pregunta_id: state.selected.id, p_concepto_id: conceptId || null });
     if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
     state.selected.concepto_id = data.concepto_id;
@@ -188,8 +200,11 @@ const AdminQuestions = (() => {
     setMessage('#save-message', data.mensaje, true);
   };
 
-  const groupQuestions = async (candidateId) => {
-    if (!state.selected) return;
+  const groupQuestions = async (candidateId, reviewedQuestionId) => {
+    if (!state.selected || !SimilarityReview.isCurrentReview(reviewedQuestionId, state.selected.id)) {
+      setMessage('#similarity-message', 'La revisión ya no corresponde a la pregunta abierta. Volvé a revisar similitud.');
+      return;
+    }
     try {
       const { data, error } = await AdminAuth.client.rpc('agrupar_preguntas_por_concepto_admin', { p_pregunta_id: state.selected.id, p_candidata_id: candidateId });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
@@ -217,13 +232,13 @@ const AdminQuestions = (() => {
         p_respuesta_correcta_id: answers.correct.id, p_respuesta_correcta: byId('#respuesta-correcta').value.trim(),
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),
         p_respuesta_3_id: answers.incorrect[1].id, p_respuesta_3: byId('#respuesta-3').value.trim(),
-        p_respuesta_4_id: answers.incorrect[2].id, p_respuesta_4: byId('#respuesta-4').value.trim()
+        p_respuesta_4_id: answers.incorrect[2].id, p_respuesta_4: byId('#respuesta-4').value.trim(),
+        p_concepto_id: requestedConceptId
       });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       const selectedId = state.selected.id;
       await loadQuestions();
       openEditor(selectedId);
-      if (requestedConceptId !== (state.selected.concepto_id || null)) await assignConcept(requestedConceptId);
       setMessage('#save-message', `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, true);
     } catch (error) {
       setMessage('#save-message', error.message || 'No fue posible guardar los cambios.');
@@ -254,7 +269,7 @@ const AdminQuestions = (() => {
     byId('#logout-button').addEventListener('click', async () => { await AdminAuth.signOut(); window.location.replace('index.html'); });
     byId('#category-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.')));
     byId('#status-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
-    byId('#close-editor').addEventListener('click', () => { byId('#editor-panel').hidden = true; state.selected = null; });
+    byId('#close-editor').addEventListener('click', () => { clearSimilarityReview(); byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);
     byId('#review-similarity-button').addEventListener('click', () => reviewSimilarity());
     try { await loadCategories(); await loadQuestions(); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.'); }
