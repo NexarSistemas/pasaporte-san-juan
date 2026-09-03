@@ -1,4 +1,4 @@
-# Pasaporte San Juan v0.4.2
+# Pasaporte San Juan v0.5.0
 
 Juego educativo de preguntas sobre San Juan, construido con HTML, CSS y JavaScript vanilla y publicado en [GitHub Pages](https://pasaporte.nexarsistemas.com.ar). Supabase aporta historial y lógica sensible.
 
@@ -18,7 +18,7 @@ El proyecto usa PostgreSQL, RLS y las RPC `crear_partida`, `responder_pregunta` 
 
 El navegador crea un UUID v4 con `crypto.randomUUID()` y lo guarda como `pasaporte-san-juan.player-token.v1` en `localStorage`. No se solicitan cuentas ni datos personales.
 
-La selección sucede en PostgreSQL: primero preguntas activas nunca vistas; luego las menos recientes y menos usadas en las últimas tres partidas, con aleatoriedad. Se evita duplicar dentro de una partida y, si hay alternativa, repetir exactamente un conjunto anterior. Al agotar las preguntas activas inicia un ciclo nuevo sin borrar historial. Las preguntas agregadas después se priorizan como nunca vistas.
+La selección sucede en PostgreSQL: agrupa variantes por `concepto_id` y evita dos preguntas semánticamente equivalentes dentro de una partida. Entre partidas prioriza grupos y preguntas menos recientes en las últimas tres partidas, sin bloquear bancos reducidos. Se evita duplicar dentro de una partida y, si hay alternativa, repetir exactamente un conjunto anterior. Al agotar las preguntas activas inicia un ciclo nuevo sin borrar historial.
 
 La opción correcta y la explicación solo se devuelven después de contestar. Al finalizar, la base reconstruye el puntaje, aciertos y racha desde el historial.
 
