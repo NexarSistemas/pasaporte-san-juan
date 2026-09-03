@@ -20,6 +20,7 @@ declare
   v_faltan integer;
   v_preguntas uuid[] := '{}'::uuid[];
   v_reemplazo uuid;
+  v_reemplazo_orden integer;
   v_es_repeticion_exacta boolean := false;
 begin
   if p_player_token is null then
@@ -167,26 +168,50 @@ begin
     where conjunto = (select array_agg(x order by x) from unnest(v_preguntas) as x)
   ) into v_es_repeticion_exacta;
 
-  if v_es_repeticion_exacta and v_activas > v_objetivo then
-    select q.id into v_reemplazo
-    from public.preguntas q
-    where q.activo and q.estado_editorial = 'publicada'
-      and not (q.id = any(v_preguntas))
-      and not exists (
-        select 1
-        from unnest(v_preguntas) as seleccion(pregunta_id)
-        join public.preguntas elegida on elegida.id = seleccion.pregunta_id
-        where (case
-          when elegida.concepto_id is null then 'pregunta:' || elegida.id::text
-          else 'concepto:' || elegida.concepto_id::text
-        end) = (case
-          when q.concepto_id is null then 'pregunta:' || q.id::text
-          else 'concepto:' || q.concepto_id::text
-        end)
-      )
+  if v_es_repeticion_exacta then
+    -- Primero cambia una variante por otra del mismo concepto. Así conserva
+    -- los grupos representados incluso si no hay conceptos adicionales.
+    select alternativa.id, seleccion.orden::integer
+    into v_reemplazo, v_reemplazo_orden
+    from unnest(v_preguntas) with ordinality as seleccion(pregunta_id, orden)
+    join public.preguntas elegida on elegida.id = seleccion.pregunta_id
+    join public.preguntas alternativa
+      on alternativa.concepto_id = elegida.concepto_id
+    where elegida.concepto_id is not null
+      and alternativa.activo and alternativa.estado_editorial = 'publicada'
+      and alternativa.id <> elegida.id
+      and not (alternativa.id = any(v_preguntas))
     order by random()
     limit 1;
-    v_preguntas[array_length(v_preguntas, 1)] := v_reemplazo;
+
+    if found then
+      v_preguntas[v_reemplazo_orden] := v_reemplazo;
+    elsif v_activas > v_objetivo then
+      -- Si no hay variantes disponibles, conserva el fallback previo hacia
+      -- un concepto que aún no esté representado.
+      select q.id into v_reemplazo
+      from public.preguntas q
+      where q.activo and q.estado_editorial = 'publicada'
+        and not (q.id = any(v_preguntas))
+        and not exists (
+          select 1
+          from unnest(v_preguntas) as seleccion(pregunta_id)
+          join public.preguntas elegida on elegida.id = seleccion.pregunta_id
+          where (case
+            when elegida.concepto_id is null then 'pregunta:' || elegida.id::text
+            else 'concepto:' || elegida.concepto_id::text
+          end) = (case
+            when q.concepto_id is null then 'pregunta:' || q.id::text
+            else 'concepto:' || q.concepto_id::text
+          end)
+        )
+      order by random()
+      limit 1;
+
+      if found then
+        v_preguntas[array_length(v_preguntas, 1)] := v_reemplazo;
+      end if;
+    end if;
   end if;
 
   select coalesce(max(numero_partida), 0) + 1 into v_numero_partida

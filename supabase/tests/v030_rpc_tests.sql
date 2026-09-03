@@ -29,6 +29,11 @@ declare
   v_conceptos_primera jsonb;
   v_conceptos_segunda jsonb;
   v_banco_mismo_concepto jsonb;
+  v_token_variantes uuid := 'aaaaaaaa-1111-4111-8111-111111111111';
+  v_jugador_variantes uuid;
+  v_partida_variantes_base uuid;
+  v_partida_variantes_alterna uuid;
+  v_regresion_variantes jsonb;
 begin
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
@@ -247,6 +252,82 @@ begin
   v_banco_mismo_concepto := public.crear_partida('99999999-9999-4999-8999-999999999999');
   assert jsonb_array_length(v_banco_mismo_concepto->'questions') = 1,
     'Un banco reducido a un concepto debe devolver una sola pregunta sin bloquearse';
+
+  -- Con exactamente 10 conceptos, las variantes disponibles deben evitar
+  -- reconstruir una combinación previa sin cambiar los grupos representados.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select format('fallback-%s', n), c.id, format('Fallback %s', n), 'Prueba de variantes', 'publicada',
+    case n
+      when 1 then '10000000-0000-4000-8000-000000000001'::uuid
+      when 2 then '10000000-0000-4000-8000-000000000001'::uuid
+      when 3 then '10000000-0000-4000-8000-000000000002'::uuid
+      when 4 then '10000000-0000-4000-8000-000000000002'::uuid
+      else ('10000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
+    end
+  from public.categorias c
+  cross join generate_series(1, 12) n
+  where c.slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas
+  where codigo_origen like 'fallback-%';
+
+  insert into public.jugadores (player_token)
+  values (v_token_variantes)
+  returning id into v_jugador_variantes;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variantes, 1, 1)
+  returning id into v_partida_variantes_base;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variantes_base, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas
+  where codigo_origen like 'fallback-%'
+    and codigo_origen not in ('fallback-2', 'fallback-4');
+  update public.partidas set created_at = now() - interval '2 days'
+  where id = v_partida_variantes_base;
+
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variantes, 2, 1)
+  returning id into v_partida_variantes_alterna;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variantes_alterna, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas
+  where codigo_origen like 'fallback-%'
+    and codigo_origen not in ('fallback-1', 'fallback-3');
+  update public.partidas set created_at = now() - interval '1 day'
+  where id = v_partida_variantes_alterna;
+
+  v_regresion_variantes := public.crear_partida(v_token_variantes);
+  assert jsonb_array_length(v_regresion_variantes->'questions') = 10,
+    'El fallback con variantes debe conservar el tamaño objetivo';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_regresion_variantes->'questions') q;
+  assert v_count = 10,
+    'El fallback con variantes no debe repetir pregunta_id';
+  select count(distinct p.concepto_id) into v_count
+  from jsonb_array_elements(v_regresion_variantes->'questions') q
+  join public.preguntas p on p.id::text = q->>'id';
+  assert v_count = 10,
+    'El fallback con variantes debe conservar una pregunta por concepto';
+  assert exists (
+    select 1
+    from jsonb_array_elements(v_regresion_variantes->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen in ('fallback-2', 'fallback-4')
+  ), 'El fallback debe usar una variante alternativa del mismo concepto';
+  select count(*) into v_count
+  from jsonb_array_elements(v_regresion_variantes->'questions') q
+  join public.partida_preguntas pp
+    on pp.partida_id = v_partida_variantes_base and pp.pregunta_id::text = q->>'id';
+  assert v_count < 10,
+    'El fallback con variantes no debe reconstruir la combinación base previa';
+  select count(*) into v_count
+  from jsonb_array_elements(v_regresion_variantes->'questions') q
+  join public.partida_preguntas pp
+    on pp.partida_id = v_partida_variantes_alterna and pp.pregunta_id::text = q->>'id';
+  assert v_count < 10,
+    'El fallback con variantes no debe reconstruir otra combinación previa';
 
   assert exists (
     select 1
