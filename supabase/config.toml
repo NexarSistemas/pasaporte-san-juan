@@ -1,0 +1,13 @@
+# Configuración local para desarrollo y CI. No contiene proyecto remoto,
+# credenciales ni secretos.
+project_id = "pasaporte-san-juan"
+
+[db]
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
