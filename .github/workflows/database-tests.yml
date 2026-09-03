@@ -1,0 +1,45 @@
+name: Validación de base de datos
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "admin/js/admin.js"
+      - "admin/js/similarity.js"
+      - "admin/js/similarity.test.js"
+      - ".github/workflows/database-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+      - name: Iniciar PostgreSQL local
+        run: >-
+          supabase start --exclude
+          gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Aplicar migraciones y seed desde cero
+        run: supabase db reset --local
+      - name: Obtener conexión local
+        run: echo "DB_URL=$(supabase status --output json | jq -r '.DB_URL')" >> "$GITHUB_ENV"
+      - name: Ejecutar pruebas RPC v0.3.0
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/v030_rpc_tests.sql
+      - name: Ejecutar pruebas de revisión semántica
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/v050_revision_semantica_admin_tests.sql
+      - name: Validar JavaScript administrativo
+        run: |
+          node --check admin/js/admin.js
+          node --check admin/js/similarity.js
+          node --test admin/js/similarity.test.js
+          node scripts/check-version.mjs
+          git diff --check
+      - name: Eliminar entorno local
+        if: always()
+        run: supabase stop --no-backup
