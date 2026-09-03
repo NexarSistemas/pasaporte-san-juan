@@ -60,7 +60,7 @@
       <section class="panel" aria-labelledby="questions-title">
         <div class="panel-heading">
           <div>
-            <h2 id="questions-title">Preguntas</h2>
+            <h2 id="questions-title">Preguntas pendientes</h2>
             <p id="questions-count" class="muted" aria-live="polite"></p>
           </div>
           <div class="filters" aria-label="Filtros de preguntas">
@@ -68,23 +68,12 @@
               Categoría
               <select id="category-filter"><option value="">Todas</option></select>
             </label>
-            <label>
-              Estado editorial
-              <select id="status-filter">
-                <option value="">Todos</option>
-                <option value="pendiente">Pendiente</option>
-                <option value="en_revision">En revisión</option>
-                <option value="revisada">Revisada</option>
-                <option value="publicada">Publicada</option>
-                <option value="rechazada">Rechazada</option>
-              </select>
-            </label>
           </div>
         </div>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Categoría</th><th>Texto</th><th>Dificultad</th><th>Activo</th><th>Estado editorial</th><th><span class="sr-only">Acción</span></th></tr></thead>
+            <thead><tr><th>Categoría</th><th>Pregunta</th><th>Respuesta correcta</th><th>Respuestas incorrectas</th><th>Dificultad</th><th>Fuente</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
             <tbody id="questions-body"></tbody>
           </table>
         </div>
@@ -117,11 +106,6 @@
                 <option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option>
               </select>
             </label>
-            <label>Estado editorial
-              <select id="estado-editorial" name="estado_editorial" required>
-                <option value="pendiente">Pendiente</option><option value="en_revision">En revisión</option><option value="revisada">Revisada</option><option value="publicada">Publicada</option><option value="rechazada">Rechazada</option>
-              </select>
-            </label>
             <label>Fuente
               <input id="fuente" name="fuente" type="text" />
             </label>
@@ -130,6 +114,18 @@
             </label>
             <label class="full-width">Observaciones de revisión
               <textarea id="observaciones-revision" name="observaciones_revision" rows="3"></textarea>
+            </label>
+            <label class="full-width">Respuesta correcta
+              <textarea id="respuesta-correcta" rows="2" required></textarea>
+            </label>
+            <label>Respuesta incorrecta 1
+              <textarea id="respuesta-2" rows="2" required></textarea>
+            </label>
+            <label>Respuesta incorrecta 2
+              <textarea id="respuesta-3" rows="2" required></textarea>
+            </label>
+            <label class="full-width">Respuesta incorrecta 3
+              <textarea id="respuesta-4" rows="2" required></textarea>
             </label>
           </div>
           <p id="save-message" class="message" role="status" aria-live="polite"></p>

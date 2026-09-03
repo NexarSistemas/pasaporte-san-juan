@@ -146,7 +146,9 @@ const AdminCsvImport = (() => {
     renderComparisonSummary(validRows);
 
     const importButton = byId('#csv-import-button');
-    importButton.hidden = !readyRows().length;
+    const comparisonCompleted = comparisons.length === validRows.length && validRows.length > 0;
+    importButton.hidden = !comparisonCompleted;
+    importButton.disabled = !readyRows().length;
 
     validRows.forEach((row) => {
       const values = row.values;
@@ -212,7 +214,12 @@ const AdminCsvImport = (() => {
         };
       });
       renderResults({ rows: state.rows, emptyRows: state.emptyRows });
-      setMessage('Comprobación contra Supabase completada.', true);
+      setMessage(
+        readyRows().length
+          ? 'Comprobación contra Supabase completada.'
+          : 'No hay filas nuevas para importar: todas fueron excluidas por duplicados o categorías no encontradas.',
+        Boolean(readyRows().length)
+      );
     } catch (_) {
       setMessage('No fue posible comprobar el CSV contra Supabase. La previsualización local se conserva.');
     } finally {
