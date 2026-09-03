@@ -39,7 +39,10 @@ begin
   -- mismo concepto sólo pueden aportar una pregunta a la partida actual.
   select count(*) into v_activas
   from (
-    select distinct coalesce(q.concepto_id, q.id)
+    select distinct case
+      when q.concepto_id is null then 'pregunta:' || q.id::text
+      else 'concepto:' || q.concepto_id::text
+    end
     from public.preguntas q
     where q.activo and q.estado_editorial = 'publicada'
   ) grupos_activos;
@@ -71,7 +74,10 @@ begin
   from (
     select id, random() as prioridad
     from (
-      select distinct on (coalesce(q.concepto_id, q.id)) q.id
+      select distinct on (case
+        when q.concepto_id is null then 'pregunta:' || q.id::text
+        else 'concepto:' || q.concepto_id::text
+      end) q.id
       from public.preguntas q
       where q.activo and q.estado_editorial = 'publicada'
         and not exists (
@@ -79,7 +85,10 @@ begin
           join public.partidas p on p.id = pp.partida_id
           where p.jugador_id = v_jugador_id and pp.pregunta_id = q.id
         )
-      order by coalesce(q.concepto_id, q.id), random()
+      order by case
+        when q.concepto_id is null then 'pregunta:' || q.id::text
+        else 'concepto:' || q.concepto_id::text
+      end, random()
     ) no_vistas_por_concepto
     order by prioridad
     limit v_objetivo
@@ -109,7 +118,10 @@ begin
         where pp.partida_id in (select id from ultimas_partidas)
         group by pp.pregunta_id
       ), candidatas_por_concepto as (
-        select distinct on (coalesce(q.concepto_id, q.id))
+        select distinct on (case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end)
           q.id, h.ultima_vez, coalesce(r.apariciones_recientes, 0) as apariciones_recientes
         from public.preguntas q
         join historial h on h.pregunta_id = q.id
@@ -120,9 +132,18 @@ begin
             select 1
             from unnest(v_preguntas) as seleccion(pregunta_id)
             join public.preguntas elegida on elegida.id = seleccion.pregunta_id
-            where coalesce(elegida.concepto_id, elegida.id) = coalesce(q.concepto_id, q.id)
+            where (case
+              when elegida.concepto_id is null then 'pregunta:' || elegida.id::text
+              else 'concepto:' || elegida.concepto_id::text
+            end) = (case
+              when q.concepto_id is null then 'pregunta:' || q.id::text
+              else 'concepto:' || q.concepto_id::text
+            end)
           )
-        order by coalesce(q.concepto_id, q.id), h.ultima_vez asc,
+        order by case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end, h.ultima_vez asc,
           coalesce(r.apariciones_recientes, 0) asc, random()
       )
       select id,
@@ -155,7 +176,13 @@ begin
         select 1
         from unnest(v_preguntas) as seleccion(pregunta_id)
         join public.preguntas elegida on elegida.id = seleccion.pregunta_id
-        where coalesce(elegida.concepto_id, elegida.id) = coalesce(q.concepto_id, q.id)
+        where (case
+          when elegida.concepto_id is null then 'pregunta:' || elegida.id::text
+          else 'concepto:' || elegida.concepto_id::text
+        end) = (case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end)
       )
     order by random()
     limit 1;

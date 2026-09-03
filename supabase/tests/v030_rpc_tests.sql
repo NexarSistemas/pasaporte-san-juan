@@ -196,17 +196,22 @@ begin
   insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
   select 'concepto-null', id, 'Sin concepto', 'Prueba sin concepto', 'publicada'
   from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select 'concepto-colision', c.id, 'Concepto que coincide con una pregunta', 'Prueba de colisión', 'publicada', p.id
+  from public.categorias c
+  join public.preguntas p on p.codigo_origen = 'concepto-null'
+  where c.slug = 'destinos';
   insert into public.respuestas (pregunta_id, texto, es_correcta)
   select id, 'Correcta ' || codigo_origen, true
   from public.preguntas
-  where codigo_origen in ('concepto-a-1', 'concepto-a-2', 'concepto-b', 'concepto-null');
+  where codigo_origen in ('concepto-a-1', 'concepto-a-2', 'concepto-b', 'concepto-null', 'concepto-colision');
 
   v_conceptos_primera := public.crear_partida('88888888-8888-4888-8888-888888888888');
-  assert jsonb_array_length(v_conceptos_primera->'questions') = 3,
+  assert jsonb_array_length(v_conceptos_primera->'questions') = 4,
     'Dos variantes del mismo concepto deben ocupar un solo lugar en la partida';
   select count(distinct q->>'id') into v_count
   from jsonb_array_elements(v_conceptos_primera->'questions') q;
-  assert v_count = 3,
+  assert v_count = 4,
     'La agrupación por concepto conserva preguntas concretas únicas';
   select count(*) into v_count
   from jsonb_array_elements(v_conceptos_primera->'questions') q
@@ -222,6 +227,12 @@ begin
     where q->>'id' = (select id::text from public.preguntas where codigo_origen = 'concepto-null')
       and q->'concepto_id' = 'null'::jsonb
   ), 'Las preguntas sin concepto_id deben seguir siendo elegibles y exponerse como null';
+  select count(*) into v_count
+  from jsonb_array_elements(v_conceptos_primera->'questions') q
+  join public.preguntas p on p.id::text = q->>'id'
+  where p.codigo_origen in ('concepto-null', 'concepto-colision');
+  assert v_count = 2,
+    'Un concepto_id igual al id de una pregunta sin concepto debe formar dos grupos independientes';
 
   v_conceptos_segunda := public.crear_partida('88888888-8888-4888-8888-888888888888');
   assert exists (
