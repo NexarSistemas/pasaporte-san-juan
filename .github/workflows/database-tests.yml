@@ -28,7 +28,7 @@ jobs:
       - name: Aplicar migraciones y seed desde cero
         run: supabase db reset --local
       - name: Obtener conexión local
-        run: supabase status --output env | grep '^DB_URL=' >> "$GITHUB_ENV"
+        run: echo "DB_URL=$(supabase status --output json | jq -r '.DB_URL')" >> "$GITHUB_ENV"
       - name: Ejecutar pruebas RPC v0.3.0
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/v030_rpc_tests.sql
       - name: Ejecutar pruebas de revisión semántica
