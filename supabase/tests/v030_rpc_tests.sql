@@ -24,6 +24,11 @@ declare
   v_banco_exacto jsonb;
   v_banco_reducido_primera jsonb;
   v_banco_reducido_segunda jsonb;
+  v_concepto_a uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  v_concepto_b uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  v_conceptos_primera jsonb;
+  v_conceptos_segunda jsonb;
+  v_banco_mismo_concepto jsonb;
 begin
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
@@ -175,6 +180,62 @@ begin
   join jsonb_array_elements(v_banco_reducido_segunda->'questions') b on a->>'id' = b->>'id';
   assert v_count = 3,
     'Una pregunta puede volver a usarse en una partida nueva';
+
+  -- Las variantes semánticas se agrupan sólo dentro de una partida. Las
+  -- preguntas sin concepto mantienen el comportamiento previo por pregunta_id.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select 'concepto-a-1', id, 'Variante A uno', 'Prueba de concepto', 'publicada', v_concepto_a
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select 'concepto-a-2', id, 'Variante A dos', 'Prueba de concepto', 'publicada', v_concepto_a
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select 'concepto-b', id, 'Variante B', 'Prueba de concepto', 'publicada', v_concepto_b
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'concepto-null', id, 'Sin concepto', 'Prueba sin concepto', 'publicada'
+  from public.categorias where slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas
+  where codigo_origen in ('concepto-a-1', 'concepto-a-2', 'concepto-b', 'concepto-null');
+
+  v_conceptos_primera := public.crear_partida('88888888-8888-4888-8888-888888888888');
+  assert jsonb_array_length(v_conceptos_primera->'questions') = 3,
+    'Dos variantes del mismo concepto deben ocupar un solo lugar en la partida';
+  select count(distinct q->>'id') into v_count
+  from jsonb_array_elements(v_conceptos_primera->'questions') q;
+  assert v_count = 3,
+    'La agrupación por concepto conserva preguntas concretas únicas';
+  select count(*) into v_count
+  from jsonb_array_elements(v_conceptos_primera->'questions') q
+  where q->>'concepto_id' = v_concepto_a::text;
+  assert v_count = 1,
+    'Una partida no debe incluir dos preguntas con el mismo concepto_id';
+  assert exists (
+    select 1 from jsonb_array_elements(v_conceptos_primera->'questions') q
+    where q->>'concepto_id' = v_concepto_b::text
+  ), 'Los conceptos diferentes deben poder aparecer en la misma partida';
+  assert exists (
+    select 1 from jsonb_array_elements(v_conceptos_primera->'questions') q
+    where q->>'id' = (select id::text from public.preguntas where codigo_origen = 'concepto-null')
+      and q->'concepto_id' = 'null'::jsonb
+  ), 'Las preguntas sin concepto_id deben seguir siendo elegibles y exponerse como null';
+
+  v_conceptos_segunda := public.crear_partida('88888888-8888-4888-8888-888888888888');
+  assert exists (
+    select 1 from jsonb_array_elements(v_conceptos_segunda->'questions') q
+    where q->>'concepto_id' = v_concepto_a::text
+  ), 'Un concepto debe volver a ser elegible al iniciar una nueva partida';
+
+  update public.preguntas set activo = false;
+  update public.preguntas
+  set activo = true
+  where codigo_origen in ('concepto-a-1', 'concepto-a-2');
+  v_banco_mismo_concepto := public.crear_partida('99999999-9999-4999-8999-999999999999');
+  assert jsonb_array_length(v_banco_mismo_concepto->'questions') = 1,
+    'Un banco reducido a un concepto debe devolver una sola pregunta sin bloquearse';
 
   assert exists (
     select 1
