@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Edición editorial de preguntas de Pasaporte San Juan." />
+    <title>Preguntas | Administración Pasaporte San Juan</title>
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Pasaporte San Juan</p>
+        <h1>Administración de preguntas</h1>
+      </div>
+      <button id="logout-button" class="button button-secondary" type="button">Cerrar sesión</button>
+    </header>
+    <main class="admin-shell">
+      <section class="panel" aria-labelledby="csv-import-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="csv-import-title">Previsualizar importación CSV</h2>
+            <p class="muted">El archivo se procesa solamente en este navegador. Esta etapa no crea ni modifica preguntas.</p>
+          </div>
+        </div>
+        <label for="csv-file">Archivo CSV UTF-8
+          <input id="csv-file" type="file" accept=".csv,text/csv" />
+        </label>
+        <p id="csv-message" class="message" role="status" aria-live="polite"></p>
+        <div id="csv-results" hidden>
+          <button id="csv-compare-button" class="button button-secondary" type="button" hidden>Comprobar contra Supabase</button>
+          <button id="csv-import-button" class="button button-primary" type="button" hidden>Importar preguntas</button>
+          <dl class="import-summary" aria-label="Resumen de validación">
+            <div><dt>Filas leídas</dt><dd id="csv-total-rows">0</dd></div>
+            <div><dt>Filas válidas</dt><dd id="csv-valid-rows">0</dd></div>
+            <div><dt>Filas con errores</dt><dd id="csv-invalid-rows">0</dd></div>
+            <div><dt>Filas vacías omitidas</dt><dd id="csv-empty-rows">0</dd></div>
+          </dl>
+          <dl id="csv-comparison-summary" class="import-summary" hidden aria-label="Resumen de comprobación contra Supabase">
+            <div><dt>Filas válidas procesadas</dt><dd id="csv-compared-rows">0</dd></div>
+            <div><dt>Listas para importar</dt><dd id="csv-ready-rows">0</dd></div>
+            <div><dt>Categorías no encontradas</dt><dd id="csv-missing-category-rows">0</dd></div>
+            <div><dt>Posibles duplicados</dt><dd id="csv-duplicate-rows">0</dd></div>
+          </dl>
+          <div id="csv-import-status" class="import-status" hidden aria-live="polite">
+            <p id="csv-import-progress"></p>
+            <p id="csv-import-summary"></p>
+            <div id="csv-import-details" class="import-errors" hidden></div>
+          </div>
+          <div id="csv-errors" class="import-errors" hidden aria-live="polite"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fila</th><th>Categoría</th><th>Categoría resuelta</th><th>Pregunta</th><th>Respuesta correcta</th><th>Otras respuestas</th><th>Dificultad</th><th>Fuente</th><th>Validación CSV</th><th>Comparación</th></tr></thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="questions-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="questions-title">Preguntas pendientes</h2>
+            <p id="questions-count" class="muted" aria-live="polite"></p>
+          </div>
+          <div class="filters" aria-label="Filtros de preguntas">
+            <label>
+              Categoría
+              <select id="category-filter"><option value="">Todas</option></select>
+            </label>
+            <label>
+              Estado editorial
+              <select id="status-filter"><option value="pendiente">Pendientes</option><option value="publicada">Publicadas</option></select>
+            </label>
+          </div>
+        </div>
+        <p id="list-message" class="message" role="status" aria-live="polite"></p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Categoría</th><th>Pregunta</th><th>Respuesta correcta</th><th>Respuestas incorrectas</th><th>Dificultad</th><th>Fuente</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <tbody id="questions-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="editor-panel" class="panel editor-panel" hidden aria-labelledby="editor-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="editor-title">Editar pregunta</h2>
+            <p id="editor-meta" class="muted"></p>
+          </div>
+          <button id="close-editor" class="button button-secondary" type="button">Cerrar</button>
+        </div>
+        <form id="question-form">
+          <div class="form-grid">
+            <label class="full-width">Texto
+              <textarea id="texto" name="texto" rows="4" required></textarea>
+            </label>
+            <label class="full-width">Texto original (referencia)
+              <textarea id="texto-original" rows="4" readonly></textarea>
+            </label>
+            <label>Pista
+              <textarea id="pista" name="pista" rows="3"></textarea>
+            </label>
+            <label>Explicación
+              <textarea id="explicacion" name="explicacion" rows="3" required></textarea>
+            </label>
+            <label>Dificultad
+              <select id="dificultad" name="dificultad" required>
+                <option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option>
+              </select>
+            </label>
+            <label>Categoría
+              <select id="editor-category" required></select>
+            </label>
+            <label>Fuente
+              <input id="fuente" name="fuente" type="text" />
+            </label>
+            <label>URL de fuente
+              <input id="url-fuente" name="url_fuente" type="url" />
+            </label>
+            <label class="full-width">Observaciones de revisión
+              <textarea id="observaciones-revision" name="observaciones_revision" rows="3"></textarea>
+            </label>
+            <label class="full-width">Respuesta correcta
+              <textarea id="respuesta-correcta" rows="2" required></textarea>
+            </label>
+            <label>Respuesta incorrecta 1
+              <textarea id="respuesta-2" rows="2" required></textarea>
+            </label>
+            <label>Respuesta incorrecta 2
+              <textarea id="respuesta-3" rows="2" required></textarea>
+            </label>
+            <label class="full-width">Respuesta incorrecta 3
+              <textarea id="respuesta-4" rows="2" required></textarea>
+            </label>
+          </div>
+          <p id="save-message" class="message" role="status" aria-live="polite"></p>
+          <button id="save-button" class="button button-primary" type="submit">Guardar cambios</button>
+        </form>
+      </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/import-csv.js"></script>
+  </body>
+</html>
