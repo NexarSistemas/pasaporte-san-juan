@@ -74,8 +74,8 @@ begin
     select id, random() as prioridad
     from (
       with ultimas_partidas as (
-        select id, created_at from public.partidas
-        where jugador_id = v_jugador_id order by created_at desc limit 3
+        select id, created_at, numero_partida from public.partidas
+        where jugador_id = v_jugador_id order by created_at desc, numero_partida desc limit 3
       ), grupos_recientes as (
         select distinct case
           when q.concepto_id is null then 'pregunta:' || q.id::text
@@ -91,7 +91,7 @@ begin
         end as grupo
         from public.partida_preguntas pp
         join public.preguntas q on q.id = pp.pregunta_id
-        where pp.partida_id = (select id from ultimas_partidas order by created_at desc limit 1)
+        where pp.partida_id = (select id from ultimas_partidas order by created_at desc, numero_partida desc limit 1)
       )
       select distinct on (case
         when q.concepto_id is null then 'pregunta:' || q.id::text
@@ -134,9 +134,9 @@ begin
         where p.jugador_id = v_jugador_id
         group by pp.pregunta_id
       ), ultimas_partidas as (
-        select id, created_at from public.partidas
+        select id, created_at, numero_partida from public.partidas
         where jugador_id = v_jugador_id
-        order by created_at desc
+        order by created_at desc, numero_partida desc
         limit 3
       ), recientes as (
         select pp.pregunta_id, count(*) as apariciones_recientes
@@ -158,7 +158,7 @@ begin
         end as grupo
         from public.partida_preguntas pp
         join public.preguntas q on q.id = pp.pregunta_id
-        where pp.partida_id = (select id from ultimas_partidas order by created_at desc limit 1)
+        where pp.partida_id = (select id from ultimas_partidas order by created_at desc, numero_partida desc limit 1)
       ), candidatas_por_concepto as (
         select distinct on (case
           when q.concepto_id is null then 'pregunta:' || q.id::text
