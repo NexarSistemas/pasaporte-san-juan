@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.6.0
+
+### Añadido
+
+- Revisión semántica/editorial de preguntas desde administración.
+- Clasificación de similitud para detectar duplicados claros y variantes posibles.
+- Gestión de `concepto_id` y agrupación editorial de preguntas relacionadas.
+
+### Mejorado
+
+- Edición atómica de pregunta, respuestas y concepto.
+- Protección contra acciones de similitud pertenecientes a otra pregunta.
+- Agrupación de variantes cuando solo una de las preguntas ya tiene concepto.
+- Workflow de GitHub Actions para validar la base de datos desde cero.
+
+### Validación e infraestructura
+
+- PostgreSQL 17 local en CI con migraciones, seed, suites SQL y checks de JavaScript y versión.
+
 ## v0.5.0
 
 ### Añadido

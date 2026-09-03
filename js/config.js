@@ -1,6 +1,6 @@
 const GAME_CONFIG = {
   title: 'Pasaporte San Juan',
-  version: '0.5.0',
+  version: '0.6.0',
   questionsPerGame: 10,
   scoring: {
     correctAnswer: 100,
