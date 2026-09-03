@@ -1,6 +1,6 @@
 const AdminQuestions = (() => {
   const state = { questions: [], selected: null };
-  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, categorias(nombre), respuestas(id, texto, es_correcta)';
+  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, categorias(nombre), respuestas(id, texto, es_correcta)';
   const byId = (id) => document.querySelector(id);
   const optionalValue = (value) => value.trim() || null;
   const categoryName = (question) => Array.isArray(question.categorias) ? question.categorias[0]?.nombre : question.categorias?.nombre;
@@ -18,12 +18,13 @@ const AdminQuestions = (() => {
   const loadCategories = async () => {
     const { data, error } = await AdminAuth.client.from('categorias').select('id, nombre').order('nombre');
     if (error) throw error;
-    const select = byId('#category-filter');
     data.forEach((category) => {
-      const option = document.createElement('option');
-      option.value = category.id;
-      option.textContent = category.nombre;
-      select.append(option);
+      ['#category-filter', '#editor-category'].forEach((id) => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.nombre;
+        byId(id).append(option);
+      });
     });
   };
 
@@ -33,7 +34,7 @@ const AdminQuestions = (() => {
     if (!state.questions.length) {
       const cell = document.createElement('td');
       cell.colSpan = 8;
-      cell.textContent = 'No hay preguntas pendientes para los filtros seleccionados.';
+      cell.textContent = 'No hay preguntas para los filtros seleccionados.';
       const row = document.createElement('tr');
       row.append(cell);
       body.append(row);
@@ -42,7 +43,8 @@ const AdminQuestions = (() => {
     state.questions.forEach((question) => {
       const row = document.createElement('tr');
       const answers = answersFor(question);
-      const values = [categoryName(question) || 'Sin categoría', question.texto, answers.correct?.texto || 'Respuesta inválida', answers.incorrect.map((answer) => answer.texto).join(' · ') || 'Respuestas inválidas', question.dificultad, question.fuente || '—', 'Pendiente'];
+      const status = question.estado_editorial === 'publicada' ? 'Publicada' : 'Pendiente';
+      const values = [categoryName(question) || 'Sin categoría', question.texto, answers.correct?.texto || 'Respuesta inválida', answers.incorrect.map((answer) => answer.texto).join(' · ') || 'Respuestas inválidas', question.dificultad, question.fuente || '—', status];
       values.forEach((value, index) => {
         const cell = document.createElement('td');
         cell.textContent = value;
@@ -60,24 +62,28 @@ const AdminQuestions = (() => {
       const edit = document.createElement('button');
       edit.type = 'button'; edit.className = 'button button-secondary row-button'; edit.textContent = 'Editar';
       edit.addEventListener('click', () => openEditor(question.id));
-      const publish = document.createElement('button');
-      publish.type = 'button'; publish.className = 'button button-primary row-button'; publish.textContent = 'Publicar';
-      publish.addEventListener('click', () => publishQuestion(question.id, publish));
-      action.append(edit, document.createTextNode(' '), publish);
+      action.append(edit);
+      if (question.estado_editorial === 'pendiente') {
+        const publish = document.createElement('button');
+        publish.type = 'button'; publish.className = 'button button-primary row-button'; publish.textContent = 'Publicar';
+        publish.addEventListener('click', () => publishQuestion(question.id, publish));
+        action.append(document.createTextNode(' '), publish);
+      }
       row.append(action);
       body.append(row);
     });
   };
 
   const loadQuestions = async () => {
-    setMessage('#list-message', 'Cargando preguntas pendientes…');
-    let query = AdminAuth.client.from('preguntas').select(fields).eq('estado_editorial', 'pendiente').order('created_at', { ascending: false });
+    const status = byId('#status-filter').value;
+    setMessage('#list-message', `Cargando preguntas ${status === 'publicada' ? 'publicadas' : 'pendientes'}…`);
+    let query = AdminAuth.client.from('preguntas').select(fields).eq('estado_editorial', status).order('created_at', { ascending: false });
     const category = byId('#category-filter').value;
     if (category) query = query.eq('categoria_id', category);
     const { data, error } = await query;
     if (error) throw error;
     state.questions = data;
-    byId('#questions-count').textContent = `${data.length} pregunta${data.length === 1 ? '' : 's'} pendiente${data.length === 1 ? '' : 's'}`;
+    byId('#questions-count').textContent = `${data.length} pregunta${data.length === 1 ? '' : 's'} ${status === 'publicada' ? 'publicada' : 'pendiente'}${data.length === 1 ? '' : 's'}`;
     renderQuestions();
     setMessage('#list-message', '');
   };
@@ -91,7 +97,8 @@ const AdminQuestions = (() => {
     }
     state.selected = question;
     byId('#editor-panel').hidden = false;
-    byId('#editor-meta').textContent = `${categoryName(question) || 'Sin categoría'} · Estado: pendiente`;
+    byId('#editor-meta').textContent = `${categoryName(question) || 'Sin categoría'} · Estado: ${question.estado_editorial}`;
+    byId('#editor-category').value = question.categoria_id;
     byId('#texto').value = question.texto || '';
     byId('#texto-original').value = question.texto_original || 'Sin texto original registrado.';
     byId('#pista').value = question.pista || '';
@@ -115,7 +122,7 @@ const AdminQuestions = (() => {
     setMessage('#save-message', '');
     try {
       const { data, error } = await AdminAuth.client.rpc('actualizar_pregunta_pendiente_admin', {
-        p_pregunta_id: state.selected.id, p_texto: byId('#texto').value.trim(), p_pista: optionalValue(byId('#pista').value), p_explicacion: byId('#explicacion').value.trim(), p_dificultad: byId('#dificultad').value, p_fuente: optionalValue(byId('#fuente').value), p_url_fuente: optionalValue(byId('#url-fuente').value), p_observaciones_revision: optionalValue(byId('#observaciones-revision').value),
+        p_pregunta_id: state.selected.id, p_categoria_id: byId('#editor-category').value, p_texto: byId('#texto').value.trim(), p_pista: optionalValue(byId('#pista').value), p_explicacion: byId('#explicacion').value.trim(), p_dificultad: byId('#dificultad').value, p_fuente: optionalValue(byId('#fuente').value), p_url_fuente: optionalValue(byId('#url-fuente').value), p_observaciones_revision: optionalValue(byId('#observaciones-revision').value),
         p_respuesta_correcta_id: answers.correct.id, p_respuesta_correcta: byId('#respuesta-correcta').value.trim(),
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),
         p_respuesta_3_id: answers.incorrect[1].id, p_respuesta_3: byId('#respuesta-3').value.trim(),
@@ -125,7 +132,7 @@ const AdminQuestions = (() => {
       const selectedId = state.selected.id;
       await loadQuestions();
       openEditor(selectedId);
-      setMessage('#save-message', 'Cambios guardados. La pregunta continúa pendiente.', true);
+      setMessage('#save-message', `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, true);
     } catch (error) {
       setMessage('#save-message', error.message || 'No fue posible guardar los cambios.');
     } finally {
@@ -154,6 +161,7 @@ const AdminQuestions = (() => {
     if (!await AdminAuth.requireAdmin()) return;
     byId('#logout-button').addEventListener('click', async () => { await AdminAuth.signOut(); window.location.replace('index.html'); });
     byId('#category-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.')));
+    byId('#status-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
     byId('#close-editor').addEventListener('click', () => { byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);
     try { await loadCategories(); await loadQuestions(); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.'); }

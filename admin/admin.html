@@ -68,6 +68,10 @@
               Categoría
               <select id="category-filter"><option value="">Todas</option></select>
             </label>
+            <label>
+              Estado editorial
+              <select id="status-filter"><option value="pendiente">Pendientes</option><option value="publicada">Publicadas</option></select>
+            </label>
           </div>
         </div>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
@@ -105,6 +109,9 @@
               <select id="dificultad" name="dificultad" required>
                 <option value="facil">Fácil</option><option value="media">Media</option><option value="dificil">Difícil</option>
               </select>
+            </label>
+            <label>Categoría
+              <select id="editor-category" required></select>
             </label>
             <label>Fuente
               <input id="fuente" name="fuente" type="text" />
