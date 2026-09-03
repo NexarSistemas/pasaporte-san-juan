@@ -76,20 +76,29 @@ begin
       with ultimas_partidas as (
         select id, created_at from public.partidas
         where jugador_id = v_jugador_id order by created_at desc limit 3
-      ), conceptos_recientes as (
-        select distinct q.concepto_id from public.partida_preguntas pp
+      ), grupos_recientes as (
+        select distinct case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end as grupo
+        from public.partida_preguntas pp
         join public.preguntas q on q.id = pp.pregunta_id
-        where pp.partida_id in (select id from ultimas_partidas) and q.concepto_id is not null
-      ), pregunta_anterior as (
-        select pp.pregunta_id from public.partida_preguntas pp
+        where pp.partida_id in (select id from ultimas_partidas)
+      ), grupos_anteriores as (
+        select distinct case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end as grupo
+        from public.partida_preguntas pp
+        join public.preguntas q on q.id = pp.pregunta_id
         where pp.partida_id = (select id from ultimas_partidas order by created_at desc limit 1)
       )
       select distinct on (case
         when q.concepto_id is null then 'pregunta:' || q.id::text
         else 'concepto:' || q.concepto_id::text
       end) q.id,
-        case when q.concepto_id is not null and q.concepto_id in (select concepto_id from conceptos_recientes) then 1 else 0 end as concepto_reciente,
-        case when q.id in (select pregunta_id from pregunta_anterior) then 1 else 0 end as pregunta_anterior
+        case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_recientes) then 1 else 0 end as grupo_reciente,
+        case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_anteriores) then 1 else 0 end as grupo_anterior
       from public.preguntas q
       where q.activo and q.estado_editorial = 'publicada'
         and not exists (
@@ -97,13 +106,17 @@ begin
           join public.partidas p on p.id = pp.partida_id
           where p.jugador_id = v_jugador_id and pp.pregunta_id = q.id
         )
+        and (case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end) not in (select grupo from grupos_recientes)
       order by case
         when q.concepto_id is null then 'pregunta:' || q.id::text
         else 'concepto:' || q.concepto_id::text
-      end, case when q.concepto_id is not null and q.concepto_id in (select concepto_id from conceptos_recientes) then 1 else 0 end,
-        case when q.id in (select pregunta_id from pregunta_anterior) then 1 else 0 end, random()
+      end, case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_anteriores) then 1 else 0 end,
+        case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_recientes) then 1 else 0 end, random()
     ) no_vistas_por_concepto
-    order by concepto_reciente, pregunta_anterior, prioridad
+    order by grupo_anterior, grupo_reciente, prioridad
     limit v_objetivo
   ) no_vistas;
 
@@ -130,12 +143,21 @@ begin
         from public.partida_preguntas pp
         where pp.partida_id in (select id from ultimas_partidas)
         group by pp.pregunta_id
-      ), conceptos_recientes as (
-        select distinct q.concepto_id from public.partida_preguntas pp
+      ), grupos_recientes as (
+        select distinct case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end as grupo
+        from public.partida_preguntas pp
         join public.preguntas q on q.id = pp.pregunta_id
-        where pp.partida_id in (select id from ultimas_partidas) and q.concepto_id is not null
-      ), pregunta_anterior as (
-        select pp.pregunta_id from public.partida_preguntas pp
+        where pp.partida_id in (select id from ultimas_partidas)
+      ), grupos_anteriores as (
+        select distinct case
+          when q.concepto_id is null then 'pregunta:' || q.id::text
+          else 'concepto:' || q.concepto_id::text
+        end as grupo
+        from public.partida_preguntas pp
+        join public.preguntas q on q.id = pp.pregunta_id
         where pp.partida_id = (select id from ultimas_partidas order by created_at desc limit 1)
       ), candidatas_por_concepto as (
         select distinct on (case
@@ -143,10 +165,10 @@ begin
           else 'concepto:' || q.concepto_id::text
         end)
           q.id, h.ultima_vez, coalesce(r.apariciones_recientes, 0) as apariciones_recientes,
-          case when q.concepto_id is not null and q.concepto_id in (select concepto_id from conceptos_recientes) then 1 else 0 end as concepto_reciente,
-          case when q.id in (select pregunta_id from pregunta_anterior) then 1 else 0 end as pregunta_anterior
+          case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_recientes) then 1 else 0 end as grupo_reciente,
+          case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_anteriores) then 1 else 0 end as grupo_anterior
         from public.preguntas q
-        join historial h on h.pregunta_id = q.id
+        left join historial h on h.pregunta_id = q.id
         left join recientes r on r.pregunta_id = q.id
         where q.activo and q.estado_editorial = 'publicada'
           and not (q.id = any(v_preguntas))
@@ -165,14 +187,14 @@ begin
         order by case
           when q.concepto_id is null then 'pregunta:' || q.id::text
           else 'concepto:' || q.concepto_id::text
-        end, case when q.concepto_id is not null and q.concepto_id in (select concepto_id from conceptos_recientes) then 1 else 0 end,
-          case when q.id in (select pregunta_id from pregunta_anterior) then 1 else 0 end, h.ultima_vez asc,
+        end, case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_anteriores) then 1 else 0 end,
+          case when (case when q.concepto_id is null then 'pregunta:' || q.id::text else 'concepto:' || q.concepto_id::text end) in (select grupo from grupos_recientes) then 1 else 0 end, h.ultima_vez asc nulls first,
           coalesce(r.apariciones_recientes, 0) asc, random()
       )
       select id,
-             row_number() over (order by concepto_reciente, pregunta_anterior, ultima_vez asc, apariciones_recientes asc, random()) as posicion
+             row_number() over (order by grupo_anterior, grupo_reciente, ultima_vez asc nulls first, apariciones_recientes asc, random()) as posicion
       from candidatas_por_concepto
-      order by concepto_reciente, pregunta_anterior, ultima_vez asc, apariciones_recientes asc, random()
+      order by grupo_anterior, grupo_reciente, ultima_vez asc nulls first, apariciones_recientes asc, random()
       limit v_faltan
     ) reutilizadas;
   end if;
