@@ -41,6 +41,18 @@ declare
   v_partida_combinacion_a3 uuid;
   v_sin_alternativa_nueva jsonb;
   v_con_alternativa_nueva jsonb;
+  v_token_prioridad uuid := 'aaaaaaaa-3333-4333-8333-333333333333';
+  v_jugador_prioridad uuid;
+  v_partida_prioridad_base uuid;
+  v_partida_prioridad_posterior uuid;
+  v_prioridad_reciente jsonb;
+  v_prioridad_fuera_horizonte jsonb;
+  v_token_orden_reciente uuid := 'aaaaaaaa-4444-4444-8444-444444444444';
+  v_jugador_orden_reciente uuid;
+  v_partida_orden_antigua uuid;
+  v_partida_orden_menor uuid;
+  v_partida_orden_mayor uuid;
+  v_orden_reciente jsonb;
 begin
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
@@ -426,6 +438,107 @@ begin
     on pp.partida_id = v_partida_combinacion_a2 and pp.pregunta_id::text = q->>'id';
   assert v_count < 10,
     'La tercera variante no debe reconstruir la combinación A2';
+
+  -- #8: la recencia se calcula por la misma clave de grupo que la partida.
+  -- Hay diez grupos antiguos y dos grupos de la partida anterior: uno sin
+  -- concepto y uno con una variante nunca usada. El banco alcanza con los
+  -- grupos antiguos, por lo que los dos recientes deben quedar postergados.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select format('prioridad-antigua-%s', n), c.id, format('Antigua %s', n), 'Prueba de recencia', 'publicada'
+  from public.categorias c cross join generate_series(1, 10) n
+  where c.slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id)
+  select codigo, c.id, codigo, 'Prueba de recencia', 'publicada', concepto
+  from public.categorias c
+  cross join (values
+    ('prioridad-concepto-vista', '30000000-0000-4000-8000-000000000001'::uuid),
+    ('prioridad-concepto-nueva', '30000000-0000-4000-8000-000000000001'::uuid),
+    ('prioridad-null-reciente', null::uuid)
+  ) as datos(codigo, concepto)
+  where c.slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'prioridad-%';
+
+  insert into public.jugadores (player_token) values (v_token_prioridad)
+  returning id into v_jugador_prioridad;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_prioridad, 1, 1) returning id into v_partida_prioridad_base;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_prioridad_base, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas
+  where codigo_origen in ('prioridad-concepto-vista', 'prioridad-null-reciente');
+  update public.partidas set created_at = now() - interval '1 day'
+  where id = v_partida_prioridad_base;
+
+  v_prioridad_reciente := public.crear_partida(v_token_prioridad);
+  assert jsonb_array_length(v_prioridad_reciente->'questions') = 10,
+    'La prioridad por recencia debe conservar el tamaño objetivo';
+  assert not exists (
+    select 1 from jsonb_array_elements(v_prioridad_reciente->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen in ('prioridad-concepto-vista', 'prioridad-concepto-nueva', 'prioridad-null-reciente')
+  ), 'Los grupos de la partida anterior, incluido el grupo sin concepto y su variante nueva, deben quedar postergados';
+
+  -- Tres partidas posteriores desplazan esos grupos fuera del horizonte.
+  for v_indice in 3..5 loop
+    insert into public.partidas (jugador_id, numero_partida, ciclo)
+    values (v_jugador_prioridad, v_indice, 1) returning id into v_partida_prioridad_posterior;
+    insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+    select v_partida_prioridad_posterior, id, 1
+    from public.preguntas where codigo_origen = 'prioridad-antigua-1';
+  end loop;
+  v_prioridad_fuera_horizonte := public.crear_partida(v_token_prioridad);
+  assert exists (
+    select 1 from jsonb_array_elements(v_prioridad_fuera_horizonte->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'prioridad-concepto-nueva'
+  ), 'Un grupo fuera de las últimas tres partidas debe recuperar prioridad normal';
+
+  -- Con timestamps iguales, numero_partida define de forma estable cuál fue
+  -- la partida anterior. Hay nueve alternativas: sólo el grupo de la partida
+  -- con número mayor debe recibir la penalización inmediata y quedar fuera.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select format('orden-reciente-%s', n), c.id, format('Orden reciente %s', n), 'Prueba de orden', 'publicada'
+  from public.categorias c cross join generate_series(1, 11) n
+  where c.slug = 'destinos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'orden-reciente-%';
+  insert into public.jugadores (player_token) values (v_token_orden_reciente)
+  returning id into v_jugador_orden_reciente;
+
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_orden_reciente, 1, 1) returning id into v_partida_orden_antigua;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_orden_antigua, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas where codigo_origen like 'orden-reciente-%' and codigo_origen not in ('orden-reciente-10', 'orden-reciente-11');
+  update public.partidas set created_at = now() - interval '1 day' where id = v_partida_orden_antigua;
+
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_orden_reciente, 2, 1) returning id into v_partida_orden_menor;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_orden_menor, id, 1 from public.preguntas where codigo_origen = 'orden-reciente-10';
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_orden_reciente, 3, 1) returning id into v_partida_orden_mayor;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_orden_mayor, id, 1 from public.preguntas where codigo_origen = 'orden-reciente-11';
+  update public.partidas set created_at = now()
+  where id in (v_partida_orden_menor, v_partida_orden_mayor);
+
+  v_orden_reciente := public.crear_partida(v_token_orden_reciente);
+  assert exists (
+    select 1 from jsonb_array_elements(v_orden_reciente->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'orden-reciente-10'
+  ), 'Con timestamps iguales, la partida de menor número no debe ser la inmediatamente anterior';
+  assert not exists (
+    select 1 from jsonb_array_elements(v_orden_reciente->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'orden-reciente-11'
+  ), 'Con timestamps iguales, la partida de mayor número debe recibir la penalización inmediata';
 
   assert exists (
     select 1
