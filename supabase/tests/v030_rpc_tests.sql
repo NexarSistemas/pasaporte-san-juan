@@ -1,4 +1,4 @@
--- Ejecutar en una base con las migraciones y seed v0.3.0. Todo queda revertido.
+-- Ejecutar en una base con todas las migraciones y el seed actuales. Todo queda revertido.
 begin;
 
 do $tests$
@@ -52,8 +52,8 @@ begin
   assert jsonb_array_length(v_cuarta->'questions') = 10, 'El nuevo ciclo debe conservar 10 preguntas';
 
   -- Una pregunta nueva se prioriza aunque el jugador esté en ciclo 2.
-  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion)
-  select 'test-nueva', id, 'Pregunta nueva de prueba', 'Explicación de prueba'
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'test-nueva', id, 'Pregunta nueva de prueba', 'Explicación de prueba', 'publicada'
   from public.categorias where slug = 'destinos';
   insert into public.respuestas (pregunta_id, texto, es_correcta)
   select id, 'Correcta nueva', true from public.preguntas where codigo_origen = 'test-nueva';
@@ -109,8 +109,8 @@ begin
   -- Simulación solicitada: 100 preguntas, 10 partidas sin repetición y una 11.
   update public.preguntas set activo = false;
   for v_indice in 1..100 loop
-    insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion)
-    select format('sim-%s', v_indice), id, format('Simulación %s', v_indice), 'Simulación'
+    insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+    select format('sim-%s', v_indice), id, format('Simulación %s', v_indice), 'Simulación', 'publicada'
     from public.categorias where slug = 'destinos';
     insert into public.respuestas (pregunta_id, texto, es_correcta)
     select id, 'Correcta', true from public.preguntas where codigo_origen = format('sim-%s', v_indice);
