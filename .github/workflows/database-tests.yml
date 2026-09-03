@@ -27,10 +27,12 @@ jobs:
           gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: Aplicar migraciones y seed desde cero
         run: supabase db reset --local
+      - name: Obtener conexión local
+        run: supabase status --output env | grep '^DB_URL=' >> "$GITHUB_ENV"
       - name: Ejecutar pruebas RPC v0.3.0
-        run: supabase db query --local --file supabase/tests/v030_rpc_tests.sql
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/v030_rpc_tests.sql
       - name: Ejecutar pruebas de revisión semántica
-        run: supabase db query --local --file supabase/tests/v050_revision_semantica_admin_tests.sql
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/v050_revision_semantica_admin_tests.sql
       - name: Validar JavaScript administrativo
         run: |
           node --check admin/js/admin.js
