@@ -5,6 +5,42 @@
   let answerPending = false;
   let nextPending = false;
 
+  const ILLUSTRATIVE_IMAGES = {
+    ischigualasto: {
+      src: 'assets/images/ischigualasto-hero.jpg',
+      alt: 'Formación rocosa del Parque Provincial Ischigualasto, San Juan',
+    },
+    leoncito: {
+      src: 'assets/images/parque-el-leoncito.jpg',
+      alt: 'Paisaje del Parque Nacional El Leoncito, Calingasta',
+    },
+    ullum: {
+      src: 'assets/images/dique-ullum.jpg',
+      alt: 'Vista aérea del dique y embalse de Ullum, San Juan',
+    },
+    general: {
+      src: 'assets/images/ischigualasto-hero.jpg',
+      alt: 'Paisaje ilustrativo de San Juan',
+    },
+  };
+  const ILLUSTRATIVE_IMAGE_RULES = [
+    { keywords: ['ischigualasto', 'valle de la luna'], image: ILLUSTRATIVE_IMAGES.ischigualasto },
+    { keywords: ['leoncito', 'pampa del leoncito', 'barreal', 'calingasta'], image: ILLUSTRATIVE_IMAGES.leoncito },
+    { keywords: ['ullum', 'dique de ullum', 'punta negra', 'cuesta del viento'], image: ILLUSTRATIVE_IMAGES.ullum },
+    { keywords: ['franklin', 'biblioteca franklin'], image: ILLUSTRATIVE_IMAGES.general },
+    { keywords: ['bodega', 'vino', 'viñedo', 'viñedos', 'vid'], image: ILLUSTRATIVE_IMAGES.general },
+  ];
+  const ILLUSTRATIVE_IMAGES_BY_CATEGORY = {
+    Naturaleza: ILLUSTRATIVE_IMAGES.leoncito,
+    Aventura: ILLUSTRATIVE_IMAGES.leoncito,
+    Destinos: ILLUSTRATIVE_IMAGES.ullum,
+    Cultura: ILLUSTRATIVE_IMAGES.general,
+    Historia: ILLUSTRATIVE_IMAGES.general,
+    'Identidad sanjuanina': ILLUSTRATIVE_IMAGES.general,
+    Argentinismos: ILLUSTRATIVE_IMAGES.general,
+  };
+  const GENERAL_ILLUSTRATIVE_IMAGE = ILLUSTRATIVE_IMAGES.general;
+
   const showScreen = (name) => Object.entries(screens).forEach(([key, element]) => element.classList.toggle('is-hidden', key !== name));
   const getLevel = (correctAnswers) => GAME_CONFIG.resultLevels.find((level) => correctAnswers >= level.minCorrect);
   const showConnectionMessage = (message = '') => {
@@ -21,6 +57,17 @@
     } else {
       button.innerHTML = 'Comenzar el viaje <span aria-hidden="true">→</span>';
     }
+  };
+
+  const resolveIllustrativeImage = (question) => {
+    const searchableText = [question.text, question.hint, question.explanation, question.category]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const matchesKeyword = (keyword) => new RegExp(`(^|\\s)${keyword}(?=\\s|$|[.,;:¿?¡!()])`).test(searchableText);
+    const matchedRule = ILLUSTRATIVE_IMAGE_RULES.find(({ keywords }) => keywords.some(matchesKeyword));
+    const image = matchedRule?.image || ILLUSTRATIVE_IMAGES_BY_CATEGORY[question.category] || GENERAL_ILLUSTRATIVE_IMAGE;
+    return { ...image, isIllustrative: true };
   };
 
   const renderCategories = (categories) => {
@@ -62,8 +109,9 @@
       media.classList.remove('is-placeholder');
       caption.classList.add('is-hidden');
     } else {
-      image.src = 'assets/images/ischigualasto-hero.jpg';
-      image.alt = 'Imagen ilustrativa del Parque Provincial Ischigualasto, San Juan';
+      const illustrativeImage = resolveIllustrativeImage(question);
+      image.src = illustrativeImage.src;
+      image.alt = illustrativeImage.alt;
       media.classList.add('is-placeholder');
       caption.classList.remove('is-hidden');
     }
