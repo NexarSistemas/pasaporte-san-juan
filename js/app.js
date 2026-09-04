@@ -23,6 +23,24 @@
     }
   };
 
+  const renderCategories = (categories) => {
+    const list = $('#category-cards');
+    list.replaceChildren();
+    categories.forEach(({ nombre, icono }) => {
+      const item = document.createElement('li');
+      item.textContent = `${icono ? `${icono} ` : ''}${nombre}`;
+      list.append(item);
+    });
+  };
+
+  const loadCategories = async () => {
+    try {
+      renderCategories(await SupabaseGame.listPublicCategories());
+    } catch (error) {
+      console.error('No se pudieron cargar las categorías', error);
+    }
+  };
+
   const renderQuestion = () => {
     const question = GameEngine.getCurrentQuestion(game);
     const total = game.questions.length;
@@ -187,4 +205,5 @@
       nextPending = false;
     }
   });
+  loadCategories();
 })();

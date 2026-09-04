@@ -53,7 +53,32 @@ declare
   v_partida_orden_menor uuid;
   v_partida_orden_mayor uuid;
   v_orden_reciente jsonb;
+  v_categorias_publicas jsonb;
 begin
+  -- La home recibe sólo las categorías que efectivamente puede jugar, en el
+  -- orden editorial configurado y sin lectura directa de tablas para anon.
+  select jsonb_agg(nombre) into v_categorias_publicas
+  from public.listar_categorias_publicas();
+  assert v_categorias_publicas = jsonb_build_array(
+    'Destinos', 'Naturaleza', 'Aventura', 'Cultura', 'Historia',
+    'Identidad sanjuanina', 'Argentinismos'
+  ), 'La RPC debe devolver las siete categorías públicas en orden';
+  assert has_function_privilege('anon', 'public.listar_categorias_publicas()', 'EXECUTE'),
+    'Anon debe poder ejecutar la RPC pública de categorías';
+  assert not has_table_privilege('anon', 'public.categorias', 'SELECT'),
+    'Anon no debe obtener SELECT directo sobre categorias';
+
+  insert into public.categorias (nombre, slug, icono, orden)
+  values ('Categoría pública de prueba', 'categoria-publica-prueba', '🧪', 8);
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'categoria-publica-prueba', id, 'Pregunta de categoría pública', 'Prueba de categoría', 'publicada'
+  from public.categorias where slug = 'categoria-publica-prueba';
+  assert exists (
+    select 1 from public.listar_categorias_publicas()
+    where nombre = 'Categoría pública de prueba' and icono = '🧪'
+  ), 'Una categoría nueva jugable debe aparecer en la RPC';
+  update public.preguntas set activo = false where codigo_origen = 'categoria-publica-prueba';
+
   -- Jugador nuevo/existente y dos primeras partidas sin repetición.
   v_primera := public.crear_partida(v_token);
   assert jsonb_array_length(v_primera->'questions') = 10, 'La primera partida debe tener 10 preguntas';
