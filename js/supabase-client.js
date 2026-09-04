@@ -25,10 +25,11 @@ const SupabaseGame = (() => {
   };
 
   const createGame = () => rpc('crear_partida', { p_player_token: getPlayerToken() });
+  const listPublicCategories = () => rpc('listar_categorias_publicas', {});
   const answerQuestion = (partidaId, preguntaId, respuestaId) => rpc('responder_pregunta', {
     p_player_token: getPlayerToken(), p_partida_id: partidaId, p_pregunta_id: preguntaId, p_respuesta_id: respuestaId
   });
   const finishGame = (partidaId) => rpc('finalizar_partida', { p_player_token: getPlayerToken(), p_partida_id: partidaId });
 
-  return { createGame, answerQuestion, finishGame };
+  return { createGame, listPublicCategories, answerQuestion, finishGame };
 })();
