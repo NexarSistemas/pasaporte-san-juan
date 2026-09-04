@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.6.1
+
+### Mejorado
+
+- La página principal carga dinámicamente todas las categorías públicas disponibles desde Supabase.
+- Las categorías nuevas aparecen sin mantener un catálogo paralelo en el frontend.
+- Las preguntas muestran una sola imagen visible por vez, sin collages ni imágenes superpuestas.
+- Las preguntas sin imagen específica usan un único fallback marcado como `Imagen ilustrativa`.
+
+### Seguridad y validación
+
+- La consulta pública de categorías se expone mediante RPC de solo lectura, sin habilitar `SELECT` directo para `anon`.
+- Las pruebas de categorías validan presencia y orden relativo sin asumir un número fijo de categorías.
+
 ## v0.6.0
 
 ### Añadido
