@@ -1,8 +1,8 @@
-# Pasaporte San Juan v0.6.0
+# Pasaporte San Juan v0.6.1
 
 Juego educativo de preguntas sobre San Juan, construido con HTML, CSS y JavaScript vanilla y publicado en [GitHub Pages](https://pasaporte.nexarsistemas.com.ar). Supabase aporta historial y lógica sensible.
 
-El juego ofrece 24 preguntas en 7 categorías, historial de partidas, selección anti-repetición, efemérides dinámicas e imágenes licenciadas. El footer identifica a Nexar Sistemas y muestra la versión activa.
+El juego consume un banco dinámico de preguntas y categorías, con historial de partidas, selección anti-repetición, efemérides dinámicas e imágenes licenciadas. El footer identifica a Nexar Sistemas y muestra la versión activa.
 
 `VERSION` es la referencia documental principal de cada release; `scripts/check-version.mjs` comprueba que coincida con `GAME_CONFIG.version` en el frontend.
 
@@ -12,7 +12,7 @@ La evolución futura del banco reutilizable de contenidos está descrita en [ARQ
 
 `GitHub Pages → RPC con publishable key → Supabase xffndejkcvsnvozeswbk (sa-east-1)`
 
-El proyecto usa PostgreSQL, RLS y las RPC `crear_partida`, `responder_pregunta` y `finalizar_partida`. El navegador solo conoce URL y publishable key en `js/config.js`; nunca contiene service_role ni secret keys y no consulta tablas directamente.
+El proyecto usa PostgreSQL, RLS y las RPC `crear_partida`, `listar_categorias_publicas`, `responder_pregunta` y `finalizar_partida`. El navegador solo conoce URL y publishable key en `js/config.js`; nunca contiene service_role ni secret keys y no consulta tablas directamente.
 
 ## Flujo y anti-repetición
 
