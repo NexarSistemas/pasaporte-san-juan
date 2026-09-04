@@ -55,33 +55,17 @@
     hint.classList.toggle('is-hidden', !question.hint);
     const media = $('#question-media');
     const image = $('#question-image');
-    const mediaContext = $('#question-media-context');
-    const contextImage = $('#question-context-image');
-    const landscapeFallback = $('#question-fallback-landscape');
-    const argentinismosFallback = $('#question-fallback-argentinismos');
+    const caption = $('#question-image-caption');
     if (question.image) {
       image.src = question.image;
       image.alt = question.imageAlt || `Imagen relacionada con ${question.category}`;
-      const contextVisual = question.image.toLowerCase().includes('dique')
-        ? { src: 'assets/images/parque-el-leoncito.jpg', alt: 'Paisaje del Parque Nacional El Leoncito' }
-        : question.image.toLowerCase().includes('leoncito')
-          ? { src: 'assets/images/dique-ullum.jpg', alt: 'Vista del dique y embalse de Ullum' }
-          : { src: 'assets/images/dique-ullum.jpg', alt: 'Vista del dique y embalse de Ullum' };
-      contextImage.src = contextVisual.src;
-      contextImage.alt = contextVisual.alt;
-      mediaContext.classList.remove('is-hidden');
       media.classList.remove('is-placeholder');
-      landscapeFallback.classList.add('is-hidden');
-      argentinismosFallback.classList.add('is-hidden');
+      caption.classList.add('is-hidden');
     } else {
-      image.removeAttribute('src');
-      image.alt = '';
-      contextImage.removeAttribute('src');
-      contextImage.alt = '';
-      mediaContext.classList.add('is-hidden');
+      image.src = 'assets/images/ischigualasto-hero.jpg';
+      image.alt = 'Imagen ilustrativa del Parque Provincial Ischigualasto, San Juan';
       media.classList.add('is-placeholder');
-      landscapeFallback.classList.toggle('is-hidden', question.category === 'Argentinismos');
-      argentinismosFallback.classList.toggle('is-hidden', question.category !== 'Argentinismos');
+      caption.classList.remove('is-hidden');
     }
     const feedback = $('#feedback');
     feedback.className = 'feedback feedback-pending';
