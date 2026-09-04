@@ -53,16 +53,20 @@ declare
   v_partida_orden_menor uuid;
   v_partida_orden_mayor uuid;
   v_orden_reciente jsonb;
-  v_categorias_publicas jsonb;
 begin
   -- La home recibe sólo las categorías que efectivamente puede jugar, en el
   -- orden editorial configurado y sin lectura directa de tablas para anon.
-  select jsonb_agg(nombre) into v_categorias_publicas
-  from public.listar_categorias_publicas();
-  assert v_categorias_publicas = jsonb_build_array(
-    'Destinos', 'Naturaleza', 'Aventura', 'Cultura', 'Historia',
-    'Identidad sanjuanina', 'Argentinismos'
-  ), 'La RPC debe devolver las siete categorías públicas en orden';
+  select count(*) into v_count
+  from (
+    select nombre, row_number() over () as posicion
+    from public.listar_categorias_publicas()
+  ) actuales
+  join (values
+    (1, 'Destinos'), (2, 'Naturaleza'), (3, 'Aventura'), (4, 'Cultura'),
+    (5, 'Historia'), (6, 'Identidad sanjuanina'), (7, 'Argentinismos')
+  ) esperadas(posicion, nombre) using (posicion, nombre);
+  assert v_count = 7,
+    'La RPC debe conservar las categorías actuales en el orden configurado';
   assert has_function_privilege('anon', 'public.listar_categorias_publicas()', 'EXECUTE'),
     'Anon debe poder ejecutar la RPC pública de categorías';
   assert not has_table_privilege('anon', 'public.categorias', 'SELECT'),
