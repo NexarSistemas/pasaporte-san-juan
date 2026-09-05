@@ -1,5 +1,5 @@
 const AdminQuestions = (() => {
-  const state = { questions: [], selected: null, searchDebounce: null, questionsRequest: 0 };
+  const state = { questions: [], selected: null, searchDebounce: null, questionsRequest: 0, page: 1, pageSize: 25, totalQuestions: 0 };
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
   const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
@@ -12,7 +12,6 @@ const AdminQuestions = (() => {
   };
   const isEditable = (question) => ['pendiente', 'publicada'].includes(question.estado_editorial);
   const statusLabel = (status) => editorialLabels[status] || status;
-  const pageSize = 1000;
 
   const setMessage = (id, text, success = false) => {
     const element = byId(id);
@@ -96,6 +95,20 @@ const AdminQuestions = (() => {
     });
   };
 
+  const totalPages = () => Math.max(1, Math.ceil(state.totalQuestions / state.pageSize));
+
+  const renderPagination = () => {
+    const first = state.totalQuestions ? ((state.page - 1) * state.pageSize) + 1 : 0;
+    const last = state.totalQuestions ? Math.min(first + state.questions.length - 1, state.totalQuestions) : 0;
+    byId('#questions-range').textContent = `${first}–${last} de ${state.totalQuestions}`;
+    const onFirstPage = state.page === 1;
+    const onLastPage = state.page === totalPages();
+    byId('#first-page').disabled = onFirstPage;
+    byId('#previous-page').disabled = onFirstPage;
+    byId('#next-page').disabled = onLastPage;
+    byId('#last-page').disabled = onLastPage;
+  };
+
   const loadQuestions = async () => {
     const request = ++state.questionsRequest;
     const filters = {
@@ -104,26 +117,39 @@ const AdminQuestions = (() => {
       text: byId('#text-filter').value.trim()
     };
     setMessage('#list-message', 'Cargando preguntas…');
-    const questions = [];
-    let from = 0;
-    while (true) {
-      let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false }).order('id', { ascending: false });
-      if (filters.status) query = query.eq('estado_editorial', filters.status);
-      if (filters.category) query = query.eq('categoria_id', filters.category);
-      if (filters.text) query = query.ilike('texto', `%${filters.text}%`);
-      const { data, error } = await query.range(from, from + pageSize - 1);
-      if (request !== state.questionsRequest) return false;
-      if (error) throw error;
-      questions.push(...data);
-      if (data.length < pageSize) break;
-      from += pageSize;
-    }
+    const from = (state.page - 1) * state.pageSize;
+    let query = AdminAuth.client.from('preguntas').select(fields, { count: 'exact' }).order('created_at', { ascending: false }).order('id', { ascending: false });
+    if (filters.status) query = query.eq('estado_editorial', filters.status);
+    if (filters.category) query = query.eq('categoria_id', filters.category);
+    if (filters.text) query = query.ilike('texto', `%${filters.text}%`);
+    const { data, error, count } = await query.range(from, from + state.pageSize - 1);
     if (request !== state.questionsRequest) return false;
-    state.questions = questions;
-    byId('#questions-count').textContent = `${questions.length} pregunta${questions.length === 1 ? '' : 's'} para los filtros seleccionados`;
+    if (error) throw error;
+    state.totalQuestions = count || 0;
+    if (state.page > totalPages()) {
+      state.page = totalPages();
+      return loadQuestions();
+    }
+    state.questions = data || [];
+    byId('#questions-count').textContent = `${state.totalQuestions} pregunta${state.totalQuestions === 1 ? '' : 's'} para los filtros seleccionados`;
     renderQuestions();
+    renderPagination();
     setMessage('#list-message', '');
     return true;
+  };
+
+  const resetQuestionsPage = () => {
+    state.page = 1;
+    return loadQuestions();
+  };
+
+  const goToPage = (page) => {
+    state.page = Math.min(Math.max(page, 1), totalPages());
+    return loadQuestions();
+  };
+
+  const syncStickyHeaderOffset = () => {
+    document.documentElement.style.setProperty('--topbar-height', `${document.querySelector('.topbar').offsetHeight}px`);
   };
 
   const loadStatusSummary = async () => {
@@ -313,17 +339,27 @@ const AdminQuestions = (() => {
 
   const init = async () => {
     if (!await AdminAuth.requireAdmin()) return;
+    syncStickyHeaderOffset();
+    window.addEventListener('resize', syncStickyHeaderOffset);
     byId('#logout-button').addEventListener('click', async () => { await AdminAuth.signOut(); window.location.replace('index.html'); });
-    byId('#category-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
-    byId('#status-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#category-filter').addEventListener('change', () => resetQuestionsPage().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#status-filter').addEventListener('change', () => resetQuestionsPage().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
     byId('#text-filter').addEventListener('input', () => {
       window.clearTimeout(state.searchDebounce);
       state.searchDebounce = window.setTimeout(() => {
-        loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.'));
+        resetQuestionsPage().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.'));
       }, 250);
     });
+    byId('#page-size').addEventListener('change', () => {
+      state.pageSize = Number(byId('#page-size').value);
+      resetQuestionsPage().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.'));
+    });
+    byId('#first-page').addEventListener('click', () => goToPage(1).catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#previous-page').addEventListener('click', () => goToPage(state.page - 1).catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#next-page').addEventListener('click', () => goToPage(state.page + 1).catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#last-page').addEventListener('click', () => goToPage(totalPages()).catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
     document.addEventListener('admin:questions-changed', () => {
-      Promise.all([loadQuestions(), loadStatusSummary()]).catch(() => setMessage('#list-message', 'No fue posible actualizar las preguntas.'));
+      Promise.all([resetQuestionsPage(), loadStatusSummary()]).catch(() => setMessage('#list-message', 'No fue posible actualizar las preguntas.'));
     });
     byId('#close-editor').addEventListener('click', () => { clearSimilarityReview(); byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);

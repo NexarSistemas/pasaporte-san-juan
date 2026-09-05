@@ -57,7 +57,7 @@
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="questions-title">
+      <section class="panel questions-panel" aria-labelledby="questions-title">
         <div class="panel-heading">
           <div>
             <h2 id="questions-title">Preguntas</h2>
@@ -92,6 +92,25 @@
           <div><dt>Publicadas</dt><dd id="status-count-publicada">0</dd></div>
           <div><dt>Rechazadas</dt><dd id="status-count-rechazada">0</dd></div>
         </dl>
+        <nav class="pagination" aria-label="Paginación de preguntas">
+          <label class="page-size">
+            Preguntas por página
+            <select id="page-size">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+          <p id="questions-range" class="muted" aria-live="polite">0–0 de 0</p>
+          <div class="pagination-actions">
+            <button id="first-page" class="button button-secondary" type="button" aria-label="Primera página">Primera</button>
+            <button id="previous-page" class="button button-secondary" type="button" aria-label="Página anterior">Anterior</button>
+            <button id="next-page" class="button button-secondary" type="button" aria-label="Página siguiente">Siguiente</button>
+            <button id="last-page" class="button button-secondary" type="button" aria-label="Última página">Última</button>
+          </div>
+        </nav>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
         <div class="table-wrap">
           <table>
