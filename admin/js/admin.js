@@ -1,6 +1,8 @@
 const AdminQuestions = (() => {
-  const state = { questions: [], selected: null };
+  const state = { questions: [], selected: null, searchDebounce: null };
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
+  const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
+  const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
   const byId = (id) => document.querySelector(id);
   const optionalValue = (value) => value.trim() || null;
   const categoryName = (question) => Array.isArray(question.categorias) ? question.categorias[0]?.nombre : question.categorias?.nombre;
@@ -8,6 +10,8 @@ const AdminQuestions = (() => {
     const answers = question.respuestas || [];
     return { correct: answers.find((answer) => answer.es_correcta), incorrect: answers.filter((answer) => !answer.es_correcta) };
   };
+  const isEditable = (question) => ['pendiente', 'publicada'].includes(question.estado_editorial);
+  const statusLabel = (status) => editorialLabels[status] || status;
 
   const setMessage = (id, text, success = false) => {
     const element = byId(id);
@@ -50,7 +54,7 @@ const AdminQuestions = (() => {
     state.questions.forEach((question) => {
       const row = document.createElement('tr');
       const answers = answersFor(question);
-      const status = question.estado_editorial === 'publicada' ? 'Publicada' : 'Pendiente';
+      const status = statusLabel(question.estado_editorial);
       const values = [categoryName(question) || 'Sin categoría', question.texto, answers.correct?.texto || 'Respuesta inválida', answers.incorrect.map((answer) => answer.texto).join(' · ') || 'Respuestas inválidas', question.concepto_id || '—', question.dificultad, question.fuente || '—', status];
       values.forEach((value, index) => {
         const cell = document.createElement('td');
@@ -59,17 +63,21 @@ const AdminQuestions = (() => {
         if (index === 3) cell.className = 'import-other-answers';
         if (index === 7) {
           const tag = document.createElement('span');
-          tag.className = 'status';
+          tag.className = `status status-${question.estado_editorial}`;
           tag.textContent = value;
           cell.replaceChildren(tag);
         }
         row.append(cell);
       });
       const action = document.createElement('td');
-      const edit = document.createElement('button');
-      edit.type = 'button'; edit.className = 'button button-secondary row-button'; edit.textContent = 'Editar';
-      edit.addEventListener('click', () => openEditor(question.id));
-      action.append(edit);
+      if (isEditable(question)) {
+        const edit = document.createElement('button');
+        edit.type = 'button'; edit.className = 'button button-secondary row-button'; edit.textContent = 'Editar';
+        edit.addEventListener('click', () => openEditor(question.id));
+        action.append(edit);
+      } else {
+        action.textContent = 'Sin acciones disponibles';
+      }
       if (question.estado_editorial === 'pendiente') {
         const publish = document.createElement('button');
         publish.type = 'button'; publish.className = 'button button-primary row-button'; publish.textContent = 'Publicar';
@@ -89,21 +97,38 @@ const AdminQuestions = (() => {
 
   const loadQuestions = async () => {
     const status = byId('#status-filter').value;
-    setMessage('#list-message', `Cargando preguntas ${status === 'publicada' ? 'publicadas' : 'pendientes'}…`);
-    let query = AdminAuth.client.from('preguntas').select(fields).eq('estado_editorial', status).order('created_at', { ascending: false });
+    setMessage('#list-message', 'Cargando preguntas…');
+    let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
+    if (status) query = query.eq('estado_editorial', status);
     const category = byId('#category-filter').value;
     if (category) query = query.eq('categoria_id', category);
+    const text = byId('#text-filter').value.trim();
+    if (text) query = query.ilike('texto', `%${text}%`);
     const { data, error } = await query;
     if (error) throw error;
     state.questions = data;
-    byId('#questions-count').textContent = `${data.length} pregunta${data.length === 1 ? '' : 's'} ${status === 'publicada' ? 'publicada' : 'pendiente'}${data.length === 1 ? '' : 's'}`;
+    byId('#questions-count').textContent = `${data.length} pregunta${data.length === 1 ? '' : 's'} para los filtros seleccionados`;
     renderQuestions();
     setMessage('#list-message', '');
+  };
+
+  const loadStatusSummary = async () => {
+    const { data, error } = await AdminAuth.client.from('preguntas').select('estado_editorial');
+    if (error) throw error;
+    const counts = editorialStates.reduce((result, status) => ({ ...result, [status]: 0 }), {});
+    data.forEach((question) => {
+      if (Object.prototype.hasOwnProperty.call(counts, question.estado_editorial)) counts[question.estado_editorial] += 1;
+    });
+    editorialStates.forEach((status) => { byId(`#status-count-${status}`).textContent = counts[status]; });
   };
 
   const openEditor = (id) => {
     const question = state.questions.find((item) => item.id === id);
     const answers = question && answersFor(question);
+    if (question && !isEditable(question)) {
+      setMessage('#list-message', `Las preguntas ${statusLabel(question.estado_editorial).toLocaleLowerCase('es-AR')} se conservan visibles, pero no están habilitadas para edición en este flujo.`);
+      return;
+    }
     if (!question || !answers.correct || answers.incorrect.length !== 3) {
       setMessage('#list-message', 'La pregunta no tiene cuatro respuestas válidas para editar.');
       return;
@@ -136,7 +161,7 @@ const AdminQuestions = (() => {
     title.textContent = candidate.texto;
     const meta = document.createElement('p');
     meta.className = 'similarity-meta';
-    meta.textContent = `${categoryName(candidate) || 'Sin categoría'} · ${candidate.estado_editorial === 'publicada' ? 'Publicada' : 'Pendiente'} · Concepto: ${candidate.concepto_id || 'sin asignar'}`;
+    meta.textContent = `${categoryName(candidate) || 'Sin categoría'} · ${statusLabel(candidate.estado_editorial)} · Concepto: ${candidate.concepto_id || 'sin asignar'}`;
     const answer = document.createElement('p');
     answer.textContent = `Respuesta correcta: ${answers.correct?.texto || 'Sin respuesta válida'}`;
     const score = document.createElement('p');
@@ -145,7 +170,12 @@ const AdminQuestions = (() => {
     container.append(title, meta, answer, score);
     const actions = document.createElement('div');
     actions.className = 'similarity-actions';
-    if (candidate.concepto_id) {
+    if (!isEditable(candidate)) {
+      const unavailable = document.createElement('p');
+      unavailable.className = 'similarity-meta';
+      unavailable.textContent = 'Sin acciones disponibles para este estado editorial.';
+      container.append(unavailable);
+    } else if (candidate.concepto_id) {
       const reuse = document.createElement('button');
       reuse.type = 'button'; reuse.className = 'button button-secondary'; reuse.textContent = 'Reutilizar concepto';
       reuse.addEventListener('click', () => assignConcept(candidate.concepto_id, reviewedQuestionId)
@@ -196,7 +226,7 @@ const AdminQuestions = (() => {
     if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
     state.selected.concepto_id = data.concepto_id;
     byId('#concepto-id').value = data.concepto_id || '';
-    await loadQuestions();
+    await Promise.all([loadQuestions(), loadStatusSummary()]);
     setMessage('#save-message', data.mensaje, true);
   };
 
@@ -210,7 +240,7 @@ const AdminQuestions = (() => {
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       state.selected.concepto_id = data.concepto_id;
       byId('#concepto-id').value = data.concepto_id;
-      await loadQuestions();
+      await Promise.all([loadQuestions(), loadStatusSummary()]);
       setMessage('#similarity-message', data.mensaje, true);
       await reviewSimilarity();
     } catch (error) {
@@ -237,7 +267,7 @@ const AdminQuestions = (() => {
       });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       const selectedId = state.selected.id;
-      await loadQuestions();
+      await Promise.all([loadQuestions(), loadStatusSummary()]);
       openEditor(selectedId);
       setMessage('#save-message', `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, true);
     } catch (error) {
@@ -255,7 +285,7 @@ const AdminQuestions = (() => {
       const { data, error } = await AdminAuth.client.rpc('publicar_pregunta_pendiente_admin', { p_pregunta_id: id });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       if (state.selected?.id === id) { state.selected = null; byId('#editor-panel').hidden = true; }
-      await loadQuestions();
+      await Promise.all([loadQuestions(), loadStatusSummary()]);
       setMessage('#list-message', 'Pregunta publicada.', true);
     } catch (error) {
       setMessage('#list-message', error.message || 'No fue posible publicar la pregunta.');
@@ -267,12 +297,21 @@ const AdminQuestions = (() => {
   const init = async () => {
     if (!await AdminAuth.requireAdmin()) return;
     byId('#logout-button').addEventListener('click', async () => { await AdminAuth.signOut(); window.location.replace('index.html'); });
-    byId('#category-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.')));
+    byId('#category-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
     byId('#status-filter').addEventListener('change', () => loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.')));
+    byId('#text-filter').addEventListener('input', () => {
+      window.clearTimeout(state.searchDebounce);
+      state.searchDebounce = window.setTimeout(() => {
+        loadQuestions().catch(() => setMessage('#list-message', 'No fue posible cargar las preguntas.'));
+      }, 250);
+    });
+    document.addEventListener('admin:questions-changed', () => {
+      Promise.all([loadQuestions(), loadStatusSummary()]).catch(() => setMessage('#list-message', 'No fue posible actualizar las preguntas.'));
+    });
     byId('#close-editor').addEventListener('click', () => { clearSimilarityReview(); byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);
     byId('#review-similarity-button').addEventListener('click', () => reviewSimilarity());
-    try { await loadCategories(); await loadQuestions(); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas pendientes.'); }
+    try { await loadCategories(); await Promise.all([loadQuestions(), loadStatusSummary()]); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas.'); }
   };
 
   return { init };
