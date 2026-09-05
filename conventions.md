@@ -15,6 +15,13 @@ El sitio se sirve con `python3 -m http.server 8080`. Para sintaxis: `node --chec
 
 Para una suite SQL completa, iniciar Supabase local, obtener la URL sin comillas con `supabase status --output json | jq -r '.DB_URL'` y ejecutar cada archivo con `psql "$DB_URL" -v ON_ERROR_STOP=1 -f ...`. La CI muestra la secuencia vigente en `.github/workflows/database-tests.yml`.
 
+## DESPLIEGUE SUPABASE
+
+- `.github/workflows/database-tests.yml` valida; no despliega producción.
+- No asumir que `main` y Supabase están sincronizados. Antes de un cambio remoto, comparar historial y objetos afectados.
+- Un proceso remoto puede registrar un timestamp de migración distinto del archivo local. Comparar nombre, orden lógico y efecto en esquema/RPC, no sólo la versión numérica.
+- Aplicar migraciones remotas únicamente con autorización explícita. Después, verificar historial, firmas de funciones, permisos y advisors; si no se desplegó, informarlo expresamente.
+
 ## RIESGOS QUE NO DEBEN ASUMIRSE
 
 - Que una publishable key otorgue privilegios: la autorización depende de RLS/RPC.

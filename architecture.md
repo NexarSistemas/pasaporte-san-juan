@@ -18,7 +18,7 @@ El token anónimo del jugador es un UUID v4 persistido sólo en `localStorage`; 
 - El frontend público no lee tablas de Supabase y no conoce claves secretas.
 - Producción no carga `js/questions.js`: esa fixture alimenta `scripts/generate-seed.mjs`.
 - Sólo preguntas activas y `publicada` entran al juego. Una partida contiene hasta diez grupos de preguntas y evita variantes del mismo concepto en la misma partida.
-- El panel administra preguntas y categorías existentes; no modifica la interfaz pública.
+- El panel administra preguntas usando las categorías existentes; no gestiona el catálogo de categorías ni modifica la interfaz pública.
 
 ## PLANIFICADO
 

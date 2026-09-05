@@ -15,7 +15,8 @@ Leé primero [architecture.md](architecture.md), [database.md](database.md), [wo
 - Inspeccioná la última definición de cada RPC en las migraciones, no una versión histórica del mismo archivo.
 - Conservá `SECURITY DEFINER`, la comprobación de `auth.uid()`/`app_metadata.role`, `search_path` controlado y los `GRANT`/`REVOKE` existentes. Nunca uses `service_role` en frontend.
 - Las preguntas jugables son activas y `publicada`. El importador sólo crea pendientes; publicar es una decisión explícita de administración.
-- Antes de modificar migraciones, admin o SQL, ejecutá las pruebas de base según `checklists.md`. No aplicar cambios a Supabase remoto sin autorización expresa.
+- Antes de modificar migraciones, admin o SQL, ejecutá las pruebas de base según `checklists.md`.
+- Un merge, tag o release de GitHub no despliega migraciones a Supabase. Si la tarea incluye producción, compará primero historial/esquema remoto con el repo, aplicá cambios sólo con autorización expresa y verificá después esquema, RPC, permisos y advisors. Si no se despliega, informalo como pendiente.
 
 ## Git y entregas
 

@@ -20,6 +20,10 @@ No sustituir una RPC fallida con cálculo local ni revelar respuestas en el payl
 
 Mantener comparación y escritura separadas. No agregar cargas masivas paralelas, categorías automáticas ni credenciales de privilegio.
 
+## OPERACIÓN: migraciones Supabase
+
+La CI de GitHub valida la base local, pero no despliega cambios al proyecto remoto. Cuando una tarea incluya producción, primero compará el estado remoto con `supabase/migrations/`; después de una autorización explícita, aplicá sólo las migraciones pendientes en su orden lógico y verificá esquema, firmas RPC, permisos e informes de advisors. Si el cambio queda sólo en el repo, declaralo como pendiente de despliegue.
+
 ## PLANIFICADO / VISIÓN EVOLUTIVA
 
 La revisión asistida por IA indicada en `ARQUITECTURA_CONTENIDOS_NEXAR.md` es un flujo conceptual externo: no hay API ni aprobación automática implementada.
