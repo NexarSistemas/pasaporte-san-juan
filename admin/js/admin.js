@@ -143,9 +143,15 @@ const AdminQuestions = (() => {
     return loadQuestions();
   };
 
-  const goToPage = (page) => {
+  const goToPage = async (page) => {
+    const previousPage = state.page;
     state.page = Math.min(Math.max(page, 1), totalPages());
-    return loadQuestions();
+    try {
+      return await loadQuestions();
+    } catch (error) {
+      state.page = previousPage;
+      throw error;
+    }
   };
 
   const syncStickyHeaderOffset = () => {
