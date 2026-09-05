@@ -1,5 +1,5 @@
 const AdminQuestions = (() => {
-  const state = { questions: [], selected: null, searchDebounce: null };
+  const state = { questions: [], selected: null, searchDebounce: null, questionsRequest: 0 };
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
   const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
@@ -12,6 +12,7 @@ const AdminQuestions = (() => {
   };
   const isEditable = (question) => ['pendiente', 'publicada'].includes(question.estado_editorial);
   const statusLabel = (status) => editorialLabels[status] || status;
+  const pageSize = 1000;
 
   const setMessage = (id, text, success = false) => {
     const element = byId(id);
@@ -96,30 +97,46 @@ const AdminQuestions = (() => {
   };
 
   const loadQuestions = async () => {
-    const status = byId('#status-filter').value;
+    const request = ++state.questionsRequest;
+    const filters = {
+      status: byId('#status-filter').value,
+      category: byId('#category-filter').value,
+      text: byId('#text-filter').value.trim()
+    };
     setMessage('#list-message', 'Cargando preguntas…');
-    let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
-    if (status) query = query.eq('estado_editorial', status);
-    const category = byId('#category-filter').value;
-    if (category) query = query.eq('categoria_id', category);
-    const text = byId('#text-filter').value.trim();
-    if (text) query = query.ilike('texto', `%${text}%`);
-    const { data, error } = await query;
-    if (error) throw error;
-    state.questions = data;
-    byId('#questions-count').textContent = `${data.length} pregunta${data.length === 1 ? '' : 's'} para los filtros seleccionados`;
+    const questions = [];
+    let from = 0;
+    while (true) {
+      let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
+      if (filters.status) query = query.eq('estado_editorial', filters.status);
+      if (filters.category) query = query.eq('categoria_id', filters.category);
+      if (filters.text) query = query.ilike('texto', `%${filters.text}%`);
+      const { data, error } = await query.range(from, from + pageSize - 1);
+      if (request !== state.questionsRequest) return false;
+      if (error) throw error;
+      questions.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+    if (request !== state.questionsRequest) return false;
+    state.questions = questions;
+    byId('#questions-count').textContent = `${questions.length} pregunta${questions.length === 1 ? '' : 's'} para los filtros seleccionados`;
     renderQuestions();
     setMessage('#list-message', '');
+    return true;
   };
 
   const loadStatusSummary = async () => {
-    const { data, error } = await AdminAuth.client.from('preguntas').select('estado_editorial');
-    if (error) throw error;
-    const counts = editorialStates.reduce((result, status) => ({ ...result, [status]: 0 }), {});
-    data.forEach((question) => {
-      if (Object.prototype.hasOwnProperty.call(counts, question.estado_editorial)) counts[question.estado_editorial] += 1;
+    const results = await Promise.all(editorialStates.map(async (status) => {
+      const { count, error } = await AdminAuth.client.from('preguntas')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado_editorial', status);
+      if (error) throw error;
+      return [status, count || 0];
+    }));
+    results.forEach(([status, count]) => {
+      byId(`#status-count-${status}`).textContent = count;
     });
-    editorialStates.forEach((status) => { byId(`#status-count-${status}`).textContent = counts[status]; });
   };
 
   const openEditor = (id) => {
