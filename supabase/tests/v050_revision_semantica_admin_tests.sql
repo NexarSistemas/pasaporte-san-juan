@@ -84,7 +84,7 @@ begin
   assert (select concepto_id from public.preguntas where id = v_pregunta_b) = (select concepto_id from public.preguntas where id = v_pregunta_a),
     'La candidata sin concepto debe recibir el concepto ya existente';
 
-  -- La importación y publicación previas continúan disponibles con concepto NULL.
+  -- La importación conserva concepto_id nullable y entra al flujo editorial.
   v_resultado := public.importar_pregunta_admin(
     'test-sem-import', v_categoria_id, '¿Qué provincia limita con San Juan al oeste?', null,
     'Prueba de regresión de importación', 'media', null, null,
@@ -93,8 +93,73 @@ begin
   v_pregunta_importada := (v_resultado->>'pregunta_id')::uuid;
   assert (select concepto_id from public.preguntas where id = v_pregunta_importada) is null,
     'La importación debe conservar concepto_id nullable';
-  v_resultado := public.publicar_pregunta_pendiente_admin(v_pregunta_importada);
-  assert (v_resultado->>'ok')::boolean, 'La publicación existente debe seguir funcionando';
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_importada, 'en_revision');
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_importada, 'revisada');
+  v_resultado := public.cambiar_estado_editorial_pregunta_admin(v_pregunta_importada, 'publicada');
+  assert (v_resultado->>'ok')::boolean, 'La publicación desde revisada debe completar el flujo';
+end;
+$tests$;
+
+do $tests$
+declare
+  v_categoria_id uuid;
+  v_pregunta_id uuid;
+  v_respuesta_correcta_id uuid;
+  v_respuesta_2_id uuid;
+  v_respuesta_3_id uuid;
+  v_respuesta_4_id uuid;
+begin
+  perform set_config('request.jwt.claim.sub', '12345678-1234-4234-8234-123456789012', true);
+  perform set_config('request.jwt.claims', '{"sub":"12345678-1234-4234-8234-123456789012","app_metadata":{"role":"admin"}}', true);
+  select id into v_categoria_id from public.categorias order by nombre limit 1;
+
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  values ('test-flujo-editorial', v_categoria_id, '¿Qué río atraviesa esta pregunta de prueba?', 'Prueba de flujo', 'pendiente')
+  returning id into v_pregunta_id;
+  insert into public.respuestas (pregunta_id, texto, es_correcta) values
+    (v_pregunta_id, 'Río San Juan', true), (v_pregunta_id, 'Río Mendoza', false),
+    (v_pregunta_id, 'Río Jáchal', false), (v_pregunta_id, 'Río Bermejo', false);
+
+  -- Sólo se aceptan las transiciones declaradas, sin saltos a publicación.
+  begin
+    perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'publicada');
+    assert false, 'No debe permitirse publicar una pregunta pendiente';
+  exception when invalid_parameter_value then null;
+  end;
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'en_revision');
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'revisada');
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'en_revision');
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'rechazada');
+  assert (select estado_editorial from public.preguntas where id = v_pregunta_id) = 'rechazada', 'La pregunta rechazada debe conservarse';
+
+  -- Rechazada no admite edición ni conceptos hasta ser reabierta.
+  select id into v_respuesta_correcta_id from public.respuestas where pregunta_id = v_pregunta_id and es_correcta;
+  select id into v_respuesta_2_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id limit 1;
+  select id into v_respuesta_3_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id offset 1 limit 1;
+  select id into v_respuesta_4_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id offset 2 limit 1;
+  begin
+    perform public.actualizar_pregunta_admin(v_pregunta_id, v_categoria_id, 'No debe editarse', null, 'Prueba de flujo', 'media', null, null, null, v_respuesta_correcta_id, 'Río San Juan', v_respuesta_2_id, 'Río Mendoza', v_respuesta_3_id, 'Río Jáchal', v_respuesta_4_id, 'Río Bermejo', null);
+    assert false, 'Una pregunta rechazada debe reabrirse antes de editarse';
+  exception when raise_exception then null;
+  end;
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'en_revision');
+  perform public.actualizar_pregunta_admin(v_pregunta_id, v_categoria_id, '¿Qué río atraviesa esta pregunta reabierta?', null, 'Prueba de flujo', 'media', null, null, null, v_respuesta_correcta_id, 'Río San Juan', v_respuesta_2_id, 'Río Mendoza', v_respuesta_3_id, 'Río Jáchal', v_respuesta_4_id, 'Río Bermejo', null);
+  assert (select texto from public.preguntas where id = v_pregunta_id) = '¿Qué río atraviesa esta pregunta reabierta?', 'La edición debe habilitarse tras reabrir';
+
+  -- Publicar exige exactamente cuatro respuestas diferentes y una correcta.
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'revisada');
+  update public.respuestas set es_correcta = false where id = v_respuesta_correcta_id;
+  begin
+    perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'publicada');
+    assert false, 'No debe publicarse sin una respuesta correcta';
+  exception when invalid_parameter_value then null;
+  end;
+  update public.respuestas set es_correcta = true where id = v_respuesta_correcta_id;
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'publicada');
+  assert (select estado_editorial from public.preguntas where id = v_pregunta_id) = 'publicada', 'La pregunta revisada válida debe publicarse';
+  assert (select revisado_at is not null and publicado_at is not null from public.preguntas where id = v_pregunta_id), 'La revisión y publicación deben registrar sus fechas';
+  perform public.cambiar_estado_editorial_pregunta_admin(v_pregunta_id, 'en_revision');
+  assert (select estado_editorial from public.preguntas where id = v_pregunta_id) = 'en_revision', 'Una pregunta publicada debe poder reabrirse';
 end;
 $tests$;
 

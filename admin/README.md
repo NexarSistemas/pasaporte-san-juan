@@ -8,6 +8,10 @@ La configuración está en `js/config.js` e incluye solamente la URL del proyect
 
 Nunca agregues ni expongas una secret key ni una `service_role` key en este directorio, GitHub Pages o cualquier otro frontend.
 
+## Flujo editorial
+
+Las acciones de estado usan únicamente `cambiar_estado_editorial_pregunta_admin`; el navegador no actualiza `estado_editorial` en tablas. Las transiciones permitidas son: pendiente a en revisión o rechazada; en revisión a revisada o rechazada; revisada a publicada, en revisión o rechazada; publicada a en revisión; y rechazada a en revisión. Las preguntas rechazadas se conservan y deben reabrirse antes de editarse. La publicación valida cuatro respuestas distintas y exactamente una correcta.
+
 ## Desarrollo local
 
 Desde la raíz del repositorio:

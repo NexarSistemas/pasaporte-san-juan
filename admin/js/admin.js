@@ -10,7 +10,7 @@ const AdminQuestions = (() => {
     const answers = question.respuestas || [];
     return { correct: answers.find((answer) => answer.es_correcta), incorrect: answers.filter((answer) => !answer.es_correcta) };
   };
-  const isEditable = (question) => ['pendiente', 'publicada'].includes(question.estado_editorial);
+  const isEditable = (question) => ['pendiente', 'en_revision', 'revisada', 'publicada'].includes(question.estado_editorial);
   const statusLabel = (status) => editorialLabels[status] || status;
   const pageSize = 1000;
 
@@ -76,20 +76,27 @@ const AdminQuestions = (() => {
         edit.type = 'button'; edit.className = 'button button-secondary row-button'; edit.textContent = 'Editar';
         edit.addEventListener('click', () => openEditor(question.id));
         action.append(edit);
-      } else {
-        action.textContent = 'Sin acciones disponibles';
       }
-      if (question.estado_editorial === 'pendiente') {
-        const publish = document.createElement('button');
-        publish.type = 'button'; publish.className = 'button button-primary row-button'; publish.textContent = 'Publicar';
-        publish.addEventListener('click', () => publishQuestion(question.id, publish));
-        action.append(document.createTextNode(' '), publish);
-      }
-      if (question.estado_editorial === 'pendiente') {
+      const transitionActions = {
+        pendiente: [['en_revision', 'Enviar a revisión', 'button-secondary'], ['rechazada', 'Rechazar', 'button-secondary']],
+        en_revision: [['revisada', 'Marcar revisada', 'button-primary'], ['rechazada', 'Rechazar', 'button-secondary']],
+        revisada: [['publicada', 'Publicar', 'button-primary'], ['en_revision', 'Devolver a revisión', 'button-secondary'], ['rechazada', 'Rechazar', 'button-secondary']],
+        publicada: [['en_revision', 'Reabrir revisión', 'button-secondary']],
+        rechazada: [['en_revision', 'Reabrir revisión', 'button-secondary']]
+      };
+      transitionActions[question.estado_editorial].forEach(([destination, label, className]) => {
+        const transition = document.createElement('button');
+        transition.type = 'button'; transition.className = `button ${className} row-button`; transition.textContent = label;
+        transition.addEventListener('click', () => changeEditorialState(question.id, destination, transition));
+        if (action.childElementCount) action.append(document.createTextNode(' '));
+        action.append(transition);
+      });
+      if (question.estado_editorial !== 'rechazada') {
         const review = document.createElement('button');
         review.type = 'button'; review.className = 'button button-secondary row-button'; review.textContent = 'Revisar similitud';
         review.addEventListener('click', () => { openEditor(question.id); reviewSimilarity(); });
-        action.append(document.createTextNode(' '), review);
+        if (action.childElementCount) action.append(document.createTextNode(' '));
+        action.append(review);
       }
       row.append(action);
       body.append(row);
@@ -294,18 +301,23 @@ const AdminQuestions = (() => {
     }
   };
 
-  const publishQuestion = async (id, button) => {
-    if (!window.confirm('La pregunta se publicará y quedará disponible para el juego. ¿Deseás continuar?')) return;
+  const changeEditorialState = async (id, destination, button) => {
+    const destinationLabel = statusLabel(destination).toLocaleLowerCase('es-AR');
+    if (destination === 'publicada' && !window.confirm('La pregunta se publicará y quedará disponible para el juego. ¿Deseás continuar?')) return;
     button.disabled = true;
-    setMessage('#list-message', 'Publicando pregunta…');
+    setMessage('#list-message', `Actualizando estado a ${destinationLabel}…`);
     try {
-      const { data, error } = await AdminAuth.client.rpc('publicar_pregunta_pendiente_admin', { p_pregunta_id: id });
+      const { data, error } = await AdminAuth.client.rpc('cambiar_estado_editorial_pregunta_admin', { p_pregunta_id: id, p_estado_destino: destination });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
-      if (state.selected?.id === id) { state.selected = null; byId('#editor-panel').hidden = true; }
       await Promise.all([loadQuestions(), loadStatusSummary()]);
-      setMessage('#list-message', 'Pregunta publicada.', true);
+      if (state.selected?.id === id) {
+        if (destination === 'rechazada' || !state.questions.some((question) => question.id === id)) {
+          state.selected = null; byId('#editor-panel').hidden = true;
+        } else openEditor(id);
+      }
+      setMessage('#list-message', data.mensaje, true);
     } catch (error) {
-      setMessage('#list-message', error.message || 'No fue posible publicar la pregunta.');
+      setMessage('#list-message', error.message || 'No fue posible actualizar el estado editorial.');
     } finally {
       button.disabled = false;
     }

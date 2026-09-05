@@ -24,6 +24,7 @@ Leé `AGENTS.md` y la referencia que corresponda:
 - `app_metadata.role = 'admin'` habilita el panel, pero las RPC administrativas también deben verificarlo. No sustituirlo por `user_metadata`.
 - El CSV se previsualiza y compara antes de persistir; la importación es secuencial por fila y sólo crea preguntas pendientes. La similitud orienta una decisión humana.
 - `concepto_id` es nullable. Los grupos de juego usan claves tipadas `concepto:<uuid>` o `pregunta:<uuid>`; no cambiar ese contrato sin pruebas de regresión.
+- El estado editorial se actualiza sólo mediante `cambiar_estado_editorial_pregunta_admin`; validá sus transiciones y la cardinalidad de respuestas al publicar. Las rechazadas se conservan y deben reabrirse antes de editarse.
 - GitHub no despliega Supabase automáticamente. Antes de afirmar que una migración está en producción, contrastá el remoto; si se aplica, hacelo sólo con autorización explícita y validá el resultado.
 
 ## Límites de alcance
