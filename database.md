@@ -9,7 +9,7 @@ El proyecto Supabase autorizado es `xffndejkcvsnvozeswbk` en `sa-east-1`. Las mi
 | Contenido | `categorias`, `preguntas`, `respuestas` | Banco editorial y cuatro respuestas por pregunta. |
 | Juego | `jugadores`, `partidas`, `partida_preguntas` | Token opaco, ciclos, respuestas e historial. |
 
-`preguntas` conserva campos editoriales, incluido `estado_editorial` (`pendiente`, `en_revision`, `revisada`, `publicada`, `rechazada`) y `concepto_id` nullable. El juego filtra `activo` y `publicada`. Las respuestas exigen una correcta por pregunta mediante índice parcial; las RPC administrativas exigen exactamente cuatro, una correcta y textos distintos al publicar/editar.
+`preguntas` conserva campos editoriales, incluido `estado_editorial` (`pendiente`, `en_revision`, `revisada`, `publicada`, `rechazada`) y `concepto_id` nullable. El juego filtra `activo` y `publicada`. El índice parcial de `respuestas` impide que una pregunta tenga más de una fila con `es_correcta = true`, pero no garantiza que exista una respuesta correcta. Los flujos administrativos de edición/publicación validan exactamente cuatro respuestas, una correcta y textos distintos; `crear_partida` no vuelve a validar esa cardinalidad al seleccionar contenido, por lo que cualquier nueva vía de escritura o seed debe preservar explícitamente ese invariante.
 
 ### Superficie pública
 
