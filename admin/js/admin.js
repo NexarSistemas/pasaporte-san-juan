@@ -107,7 +107,7 @@ const AdminQuestions = (() => {
     const questions = [];
     let from = 0;
     while (true) {
-      let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false });
+      let query = AdminAuth.client.from('preguntas').select(fields).order('created_at', { ascending: false }).order('id', { ascending: false });
       if (filters.status) query = query.eq('estado_editorial', filters.status);
       if (filters.category) query = query.eq('categoria_id', filters.category);
       if (filters.text) query = query.ilike('texto', `%${filters.text}%`);
