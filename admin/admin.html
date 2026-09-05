@@ -60,7 +60,7 @@
       <section class="panel" aria-labelledby="questions-title">
         <div class="panel-heading">
           <div>
-            <h2 id="questions-title">Preguntas pendientes</h2>
+            <h2 id="questions-title">Preguntas</h2>
             <p id="questions-count" class="muted" aria-live="polite"></p>
           </div>
           <div class="filters" aria-label="Filtros de preguntas">
@@ -70,10 +70,28 @@
             </label>
             <label>
               Estado editorial
-              <select id="status-filter"><option value="pendiente">Pendientes</option><option value="publicada">Publicadas</option></select>
+              <select id="status-filter">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="en_revision">En revisión</option>
+                <option value="revisada">Revisadas</option>
+                <option value="publicada">Publicadas</option>
+                <option value="rechazada">Rechazadas</option>
+              </select>
+            </label>
+            <label>
+              Buscar por texto
+              <input id="text-filter" type="search" placeholder="Texto de la pregunta" autocomplete="off" />
             </label>
           </div>
         </div>
+        <dl class="editorial-summary" aria-label="Resumen por estado editorial">
+          <div><dt>Pendientes</dt><dd id="status-count-pendiente">0</dd></div>
+          <div><dt>En revisión</dt><dd id="status-count-en_revision">0</dd></div>
+          <div><dt>Revisadas</dt><dd id="status-count-revisada">0</dd></div>
+          <div><dt>Publicadas</dt><dd id="status-count-publicada">0</dd></div>
+          <div><dt>Rechazadas</dt><dd id="status-count-rechazada">0</dd></div>
+        </dl>
         <p id="list-message" class="message" role="status" aria-live="polite"></p>
         <div class="table-wrap">
           <table>

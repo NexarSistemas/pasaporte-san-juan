@@ -357,6 +357,7 @@ const AdminCsvImport = (() => {
     });
     details.hidden = !results.errors.length;
     setMessage(results.errors.length ? 'La importación finalizó con errores por fila.' : 'Importación completada.', !results.errors.length);
+    if (results.imported.length) document.dispatchEvent(new CustomEvent('admin:questions-changed'));
     button.disabled = false;
     compareButton.disabled = false;
   };
