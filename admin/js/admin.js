@@ -94,6 +94,9 @@ const AdminQuestions = (() => {
 
   const uploadImage = async () => {
     if (!state.selected) return;
+    const selectedQuestionId = state.selected.id;
+    const uploadStillBelongsToSelectedQuestion = () => state.selected?.id === selectedQuestionId;
+    let uploadNoLongerApplies = false;
     const fileInput = byId('#image-file');
     const file = fileInput.files?.[0];
     const validationError = imageFileError(file);
@@ -105,13 +108,14 @@ const AdminQuestions = (() => {
       setMessage('#image-upload-message', 'El navegador no puede generar un nombre seguro para la imagen.');
       return;
     }
-    const objectPath = `preguntas/${state.selected.id}/${window.crypto.randomUUID()}.${imageExtensions[file.type]}`;
+    const objectPath = `preguntas/${selectedQuestionId}/${window.crypto.randomUUID()}.${imageExtensions[file.type]}`;
     setImageUploadInProgress(true);
     setMessage('#image-upload-message', 'Subiendo imagen…');
     try {
       const previousPending = state.pendingImage;
       if (previousPending) {
         await discardPendingImage();
+        if (!uploadStillBelongsToSelectedQuestion()) return;
         if (byId('#imagen').value.trim() === previousPending.publicUrl) {
           byId('#imagen').value = state.selected.imagen || '';
           renderImagePreview(state.selected.imagen || '');
@@ -120,6 +124,11 @@ const AdminQuestions = (() => {
       const storage = AdminAuth.client.storage.from(imageBucket);
       const { data, error } = await storage.upload(objectPath, file, { contentType: file.type, upsert: false });
       if (error) throw error;
+      if (!uploadStillBelongsToSelectedQuestion()) {
+        uploadNoLongerApplies = true;
+        await removeStorageObject(data.path);
+        return;
+      }
       const { data: publicUrlData } = storage.getPublicUrl(data.path);
       if (!publicUrlData?.publicUrl) throw new Error('No fue posible obtener la URL pública de la imagen.');
       state.pendingImage = { path: data.path, publicUrl: publicUrlData.publicUrl };
@@ -128,7 +137,9 @@ const AdminQuestions = (() => {
       renderImagePreview(publicUrlData.publicUrl);
       setMessage('#image-upload-message', 'Imagen subida correctamente. Guardá la pregunta para asociarla.', true);
     } catch (error) {
-      setMessage('#image-upload-message', error.message || 'No fue posible subir la imagen.');
+      if (!uploadNoLongerApplies && uploadStillBelongsToSelectedQuestion()) {
+        setMessage('#image-upload-message', error.message || 'No fue posible subir la imagen.');
+      }
     } finally {
       setImageUploadInProgress(false);
     }
@@ -294,6 +305,10 @@ const AdminQuestions = (() => {
   };
 
   const openEditor = (id) => {
+    if (state.imageUploadInProgress) {
+      setMessage('#list-message', 'Esperá a que termine la subida de la imagen antes de abrir otra pregunta.');
+      return;
+    }
     if (state.pendingImage && state.selected?.id !== id) {
       setMessage('#list-message', 'Guardá o cerrá la pregunta actual antes de editar otra imagen pendiente.');
       return;
