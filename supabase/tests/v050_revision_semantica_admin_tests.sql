@@ -163,4 +163,50 @@ begin
 end;
 $tests$;
 
+do $tests$
+declare
+  v_categoria_id uuid;
+  v_pregunta_id uuid;
+  v_respuesta_correcta_id uuid;
+  v_respuesta_2_id uuid;
+  v_respuesta_3_id uuid;
+  v_respuesta_4_id uuid;
+begin
+  perform set_config('request.jwt.claim.sub', '12345678-1234-4234-8234-123456789012', true);
+  perform set_config('request.jwt.claims', '{"sub":"12345678-1234-4234-8234-123456789012","app_metadata":{"role":"admin"}}', true);
+  select id into v_categoria_id from public.categorias order by nombre limit 1;
+
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  values ('test-imagen-alt', v_categoria_id, '¿Qué valida el texto alternativo?', 'Prueba de imagen', 'pendiente')
+  returning id into v_pregunta_id;
+  insert into public.respuestas (pregunta_id, texto, es_correcta) values
+    (v_pregunta_id, 'Texto alternativo', true), (v_pregunta_id, 'Sin descripción', false),
+    (v_pregunta_id, 'Solo URL', false), (v_pregunta_id, 'Sin imagen', false);
+  select id into v_respuesta_correcta_id from public.respuestas where pregunta_id = v_pregunta_id and es_correcta;
+  select id into v_respuesta_2_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id limit 1;
+  select id into v_respuesta_3_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id offset 1 limit 1;
+  select id into v_respuesta_4_id from public.respuestas where pregunta_id = v_pregunta_id and not es_correcta order by id offset 2 limit 1;
+
+  begin
+    perform public.actualizar_pregunta_admin(
+      v_pregunta_id, v_categoria_id, '¿Qué valida el texto alternativo?', null, 'Prueba de imagen', 'media', null, null, null,
+      v_respuesta_correcta_id, 'Texto alternativo', v_respuesta_2_id, 'Sin descripción', v_respuesta_3_id, 'Solo URL', v_respuesta_4_id, 'Sin imagen', null,
+      'https://example.com/pregunta.jpg', '   '
+    );
+    assert false, 'Una imagen sin texto alternativo debe rechazarse';
+  exception when invalid_parameter_value then null;
+  end;
+
+  perform public.actualizar_pregunta_admin(
+    v_pregunta_id, v_categoria_id, '¿Qué valida el texto alternativo?', null, 'Prueba de imagen', 'media', null, null, null,
+    v_respuesta_correcta_id, 'Texto alternativo', v_respuesta_2_id, 'Sin descripción', v_respuesta_3_id, 'Solo URL', v_respuesta_4_id, 'Sin imagen', null,
+    'https://example.com/pregunta.jpg', 'Descripción de ejemplo'
+  );
+  assert (select imagen from public.preguntas where id = v_pregunta_id) = 'https://example.com/pregunta.jpg',
+    'La imagen con texto alternativo debe persistirse';
+  assert (select imagen_alt from public.preguntas where id = v_pregunta_id) = 'Descripción de ejemplo',
+    'El texto alternativo debe persistirse';
+end;
+$tests$;
+
 rollback;

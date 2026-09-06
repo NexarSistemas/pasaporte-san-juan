@@ -62,8 +62,8 @@
       media.classList.remove('is-placeholder');
       caption.classList.add('is-hidden');
     } else {
-      image.src = 'assets/images/ischigualasto-hero.jpg';
-      image.alt = 'Imagen ilustrativa del Parque Provincial Ischigualasto, San Juan';
+      image.src = 'assets/images/pasaporte-san-juan-placeholder.svg';
+      image.alt = 'Imagen ilustrativa de Pasaporte San Juan';
       media.classList.add('is-placeholder');
       caption.classList.remove('is-hidden');
     }
