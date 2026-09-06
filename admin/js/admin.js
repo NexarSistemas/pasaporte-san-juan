@@ -428,7 +428,7 @@ const AdminQuestions = (() => {
     }
   };
 
-  const saveQuestionChanges = async () => {
+  const saveQuestionChanges = async ({ skipImageRemovalConfirmation = false } = {}) => {
     if (!state.selected) return;
     if (state.imageUploadInProgress) {
       setMessage('#save-message', 'Esperá a que termine la subida de la imagen.');
@@ -440,6 +440,10 @@ const AdminQuestions = (() => {
     const requestedConceptId = byId('#concepto-id').value.trim() || null;
     const image = optionalValue(byId('#imagen').value);
     const imageAlt = optionalValue(byId('#imagen-alt').value);
+    if (selectedQuestion.imagen && !image && !skipImageRemovalConfirmation
+      && !window.confirm('¿Querés quitar la imagen de esta pregunta?')) {
+      return false;
+    }
     if (image && !imageAlt) {
       setMessage('#save-message', 'Agregá un texto alternativo para la imagen antes de guardar.');
       byId('#imagen-alt').focus();
@@ -515,7 +519,7 @@ const AdminQuestions = (() => {
       byId('#imagen').value = '';
       byId('#imagen-alt').value = '';
       renderImagePreview('');
-      await saveQuestionChanges();
+      await saveQuestionChanges({ skipImageRemovalConfirmation: true });
     } catch (error) {
       setMessage('#save-message', error.message || 'No fue posible quitar la imagen pendiente.');
     } finally {
