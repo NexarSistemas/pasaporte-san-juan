@@ -3,6 +3,9 @@ const AdminQuestions = (() => {
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, imagen, imagen_alt, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
   const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
+  const imageBucket = 'preguntas-imagenes';
+  const maxImageBytes = 2 * 1024 * 1024;
+  const imageExtensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
   const byId = (id) => document.querySelector(id);
   const optionalValue = (value) => value.trim() || null;
   const categoryName = (question) => Array.isArray(question.categorias) ? question.categorias[0]?.nombre : question.categorias?.nombre;
@@ -17,6 +20,66 @@ const AdminQuestions = (() => {
     const element = byId(id);
     element.textContent = text;
     element.classList.toggle('is-success', success);
+  };
+
+  const renderImagePreview = (source) => {
+    const preview = byId('#image-preview');
+    const image = byId('#image-preview-image');
+    const previewMessage = '#image-preview-message';
+    if (!source) {
+      image.removeAttribute('src');
+      preview.hidden = true;
+      setMessage(previewMessage, '');
+      return;
+    }
+    image.alt = byId('#imagen-alt').value.trim() || 'Vista previa de la imagen de la pregunta';
+    image.onload = () => setMessage(previewMessage, '');
+    image.onerror = () => setMessage(previewMessage, 'No se pudo cargar la vista previa de la imagen.');
+    image.src = source.startsWith('assets/') ? `../${source}` : source;
+    preview.hidden = false;
+  };
+
+  const imageFileError = (file) => {
+    if (!file) return 'Elegí una imagen para subir.';
+    if (!Object.hasOwn(imageExtensions, file.type)) return 'La imagen debe ser JPG, PNG o WebP.';
+    if (file.size > maxImageBytes) return 'La imagen supera el máximo de 2 MB.';
+    return '';
+  };
+
+  const uploadImage = async () => {
+    if (!state.selected) return;
+    const fileInput = byId('#image-file');
+    const file = fileInput.files?.[0];
+    const validationError = imageFileError(file);
+    if (validationError) {
+      setMessage('#image-upload-message', validationError);
+      return;
+    }
+    if (!window.crypto?.randomUUID) {
+      setMessage('#image-upload-message', 'El navegador no puede generar un nombre seguro para la imagen.');
+      return;
+    }
+    const button = byId('#upload-image-button');
+    const objectPath = `preguntas/${state.selected.id}/${window.crypto.randomUUID()}.${imageExtensions[file.type]}`;
+    button.disabled = true;
+    fileInput.disabled = true;
+    setMessage('#image-upload-message', 'Subiendo imagen…');
+    try {
+      const storage = AdminAuth.client.storage.from(imageBucket);
+      const { data, error } = await storage.upload(objectPath, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data: publicUrlData } = storage.getPublicUrl(data.path);
+      if (!publicUrlData?.publicUrl) throw new Error('No fue posible obtener la URL pública de la imagen.');
+      byId('#imagen').value = publicUrlData.publicUrl;
+      fileInput.value = '';
+      renderImagePreview(publicUrlData.publicUrl);
+      setMessage('#image-upload-message', 'Imagen subida correctamente. Guardá la pregunta para asociarla.', true);
+    } catch (error) {
+      setMessage('#image-upload-message', error.message || 'No fue posible subir la imagen.');
+    } finally {
+      button.disabled = false;
+      fileInput.disabled = false;
+    }
   };
 
   const clearSimilarityReview = () => {
@@ -204,6 +267,9 @@ const AdminQuestions = (() => {
     byId('#url-fuente').value = question.url_fuente || '';
     byId('#imagen').value = question.imagen || '';
     byId('#imagen-alt').value = question.imagen_alt || '';
+    byId('#image-file').value = '';
+    setMessage('#image-upload-message', '');
+    renderImagePreview(question.imagen || '');
     byId('#observaciones-revision').value = question.observaciones_revision || '';
     byId('#respuesta-correcta').value = answers.correct.texto;
     answers.incorrect.forEach((answer, index) => { byId(`#respuesta-${index + 2}`).value = answer.texto; });
@@ -312,6 +378,13 @@ const AdminQuestions = (() => {
     const button = byId('#save-button');
     const answers = answersFor(state.selected);
     const requestedConceptId = byId('#concepto-id').value.trim() || null;
+    const image = optionalValue(byId('#imagen').value);
+    const imageAlt = optionalValue(byId('#imagen-alt').value);
+    if (image && !imageAlt) {
+      setMessage('#save-message', 'Agregá un texto alternativo para la imagen antes de guardar.');
+      byId('#imagen-alt').focus();
+      return;
+    }
     button.disabled = true;
     setMessage('#save-message', '');
     try {
@@ -321,7 +394,7 @@ const AdminQuestions = (() => {
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),
         p_respuesta_3_id: answers.incorrect[1].id, p_respuesta_3: byId('#respuesta-3').value.trim(),
         p_respuesta_4_id: answers.incorrect[2].id, p_respuesta_4: byId('#respuesta-4').value.trim(),
-        p_concepto_id: requestedConceptId, p_imagen: optionalValue(byId('#imagen').value), p_imagen_alt: optionalValue(byId('#imagen-alt').value)
+        p_concepto_id: requestedConceptId, p_imagen: image, p_imagen_alt: imageAlt
       });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       const selectedId = state.selected.id;
@@ -383,6 +456,12 @@ const AdminQuestions = (() => {
     });
     byId('#close-editor').addEventListener('click', () => { clearSimilarityReview(); byId('#editor-panel').hidden = true; state.selected = null; });
     byId('#question-form').addEventListener('submit', saveQuestion);
+    byId('#imagen').addEventListener('input', () => renderImagePreview(byId('#imagen').value.trim()));
+    byId('#imagen-alt').addEventListener('input', () => {
+      const preview = byId('#image-preview-image');
+      if (preview.getAttribute('src')) preview.alt = byId('#imagen-alt').value.trim() || 'Vista previa de la imagen de la pregunta';
+    });
+    byId('#upload-image-button').addEventListener('click', uploadImage);
     byId('#review-similarity-button').addEventListener('click', () => reviewSimilarity());
     try { await loadCategories(); await Promise.all([loadQuestions(), loadStatusSummary()]); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas.'); }
   };
