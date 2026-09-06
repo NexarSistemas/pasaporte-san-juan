@@ -19,7 +19,7 @@ El rol `anon` no recibe permisos de tablas. Puede ejecutar solamente `crear_part
 
 ### Administración
 
-El panel requiere sesión autenticada y `app_metadata.role = 'admin'`. Las políticas permiten a administración leer categorías, preguntas y respuestas. Las RPC de escritura verifican de nuevo `auth.uid()` y el rol en `app_metadata`; `importar_pregunta_admin`, `actualizar_pregunta_admin`, `publicar_pregunta_pendiente_admin`, `asignar_concepto_pregunta_admin` y `agrupar_preguntas_por_concepto_admin` son los contratos usados por el panel.
+El panel requiere sesión autenticada y `app_metadata.role = 'admin'`. Las políticas permiten a administración leer categorías, preguntas y respuestas. Las RPC de escritura verifican de nuevo `auth.uid()` y el rol en `app_metadata`; `importar_pregunta_admin`, `actualizar_pregunta_admin`, `cambiar_estado_editorial_pregunta_admin`, `asignar_concepto_pregunta_admin` y `agrupar_preguntas_por_concepto_admin` son los contratos usados por el panel. El estado sólo cambia con `cambiar_estado_editorial_pregunta_admin(uuid, text)`: valida las transiciones editoriales y, al publicar, exige cuatro respuestas distintas y exactamente una correcta.
 
 No autorices con `user_metadata`: es modificable por el usuario. No concedas `EXECUTE` a `PUBLIC`/`anon` para RPC administrativas ni pongas `service_role` en clientes.
 

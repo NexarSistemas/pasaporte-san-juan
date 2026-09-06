@@ -16,7 +16,8 @@ No sustituir una RPC fallida con cálculo local ni revelar respuestas en el payl
 2. El navegador analiza, valida estructura/dificultad/respuestas y muestra una previsualización: todavía no escribe datos.
 3. La comparación consulta categorías y preguntas para detectar categoría inexistente y posibles duplicados por `codigo_origen` o texto normalizado. Es una ayuda, no una decisión editorial automática.
 4. Tras confirmación, importa una fila a la vez mediante `importar_pregunta_admin`. Las filas listas quedan `pendiente`; errores y duplicados se informan por fila.
-5. El administrador edita, puede revisar similitud y asignar/agrupar `concepto_id`, y publica explícitamente. Sólo la publicación habilita la pregunta para el juego.
+5. El administrador edita y puede asignar/agrupar `concepto_id` mientras la pregunta está `pendiente`, `en_revision`, `revisada` o `publicada`. Una rechazada se conserva y debe reabrirse antes de editarse.
+6. El estado cambia exclusivamente mediante la RPC administrativa: `pendiente → en_revision | rechazada`; `en_revision → revisada | rechazada`; `revisada → publicada | en_revision | rechazada`; `publicada → en_revision`; `rechazada → en_revision`. Publicar valida cuatro respuestas distintas y una sola correcta. Sólo la publicación habilita la pregunta para el juego.
 
 Mantener comparación y escritura separadas. No agregar cargas masivas paralelas, categorías automáticas ni credenciales de privilegio.
 
