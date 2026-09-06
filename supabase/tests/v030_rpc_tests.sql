@@ -69,6 +69,11 @@ declare
   v_jugador_grupo_fallback uuid;
   v_partida_grupo_base uuid;
   v_partida_grupo_reciente uuid;
+  v_token_variante_viable uuid := 'bbbbbbbb-1111-4111-8111-111111111111';
+  v_variante_viable jsonb;
+  v_jugador_variante_viable uuid;
+  v_partida_variante_primaria uuid;
+  v_partida_variante_alternativa uuid;
   v_nombres_categorias text[];
   v_posiciones_categorias integer[];
 begin
@@ -798,6 +803,81 @@ begin
     join public.preguntas p on p.id::text = q->>'id'
     where p.codigo_origen = 'reg-fallback-grupo-nuevo'
   ), 'Sin variante, el fallback debe usar un grupo no seleccionado disponible';
+
+  -- Regresión 5: la variante primaria entra primero y después bloquea la
+  -- segunda plaza necesaria en Destinos. Su alternativa en Identidad debe
+  -- reasignarse antes de degradar el modo estricto.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select format('reg-viable-%s', datos.n), c.id, format('Viable %s', datos.n),
+    'Prueba de variantes viables', 'publicada'
+  from (values
+    (1, 'destinos'), (2, 'destinos'),
+    (3, 'naturaleza'), (4, 'naturaleza'),
+    (5, 'aventura'), (6, 'aventura'),
+    (7, 'cultura'), (8, 'cultura'), (9, 'historia')
+  ) as datos(n, slug)
+  join public.categorias c on c.slug = datos.slug;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-viable-primaria', id, 'Variante primaria bloqueada',
+    'Prueba de variantes viables', 'publicada', '70000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-viable-alternativa', id, 'Variante alternativa viable',
+    'Prueba de variantes viables', 'publicada', '70000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'identidad-sanjuanina';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-viable-%';
+  insert into public.jugadores (player_token) values (v_token_variante_viable)
+  returning id into v_jugador_variante_viable;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_viable, 1, 1) returning id into v_partida_variante_primaria;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_primaria, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas where codigo_origen ~ '^reg-viable-[1-9]$';
+  update public.partidas set created_at = now() - interval '2 days'
+  where id = v_partida_variante_primaria;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_viable, 2, 1) returning id into v_partida_variante_alternativa;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_alternativa, id, 1
+  from public.preguntas where codigo_origen = 'reg-viable-alternativa';
+
+  v_variante_viable := public.crear_partida(v_token_variante_viable);
+  assert jsonb_array_length(v_variante_viable->'questions') = 10,
+    'La variante viable debe completar una partida de diez preguntas';
+  assert exists (
+    select 1
+    from jsonb_array_elements(v_variante_viable->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-viable-alternativa'
+  ), 'Una variante alternativa debe evitar degradar el modo estricto';
+  assert not exists (
+    select 1
+    from jsonb_array_elements(v_variante_viable->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-viable-primaria'
+  ), 'La variante bloqueada por categoría no debe desplazar a la viable';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    where pp.partida_id = (v_variante_viable->>'partida_id')::uuid
+    group by p.categoria_id having count(*) > 2
+  ), 'La alternativa viable debe conservar el máximo por categoría';
+  assert not exists (
+    select 1 from (
+      select p.categoria_id, lag(p.categoria_id) over (order by pp.orden) as anterior
+      from public.partida_preguntas pp
+      join public.preguntas p on p.id = pp.pregunta_id
+      where pp.partida_id = (v_variante_viable->>'partida_id')::uuid
+    ) ordenadas where categoria_id = anterior
+  ), 'La alternativa viable debe conservar la no adyacencia';
 
   assert exists (
     select 1

@@ -27,6 +27,7 @@ declare
   v_categoria_anterior uuid;
   v_categoria uuid;
   v_candidata record;
+  v_reasignacion record;
   v_seleccion record;
   v_alternativa record;
   v_reemplazo uuid;
@@ -134,10 +135,11 @@ begin
           select id from ultimas_partidas
           order by created_at desc, numero_partida desc limit 1
         )
-      ), por_grupo as (
-        select distinct on (case when q.concepto_id is null then 'pregunta:' || q.id::text
-          else 'concepto:' || q.concepto_id::text end)
-          q.id, q.categoria_id,
+      ), candidatas as (
+        -- No se reduce a una variante antes de aplicar el límite de categoría:
+        -- si la mejor opción de un grupo no es viable, las restantes pueden
+        -- completar el mismo modo sin duplicar el grupo.
+        select q.id, q.categoria_id,
           case when q.concepto_id is null then 'pregunta:' || q.id::text
             else 'concepto:' || q.concepto_id::text end as grupo,
           case when h.pregunta_id is null then 0 else 1 end as vista,
@@ -152,14 +154,10 @@ begin
         left join historial h on h.pregunta_id = q.id
         left join recientes r on r.pregunta_id = q.id
         where q.activo and q.estado_editorial = 'publicada'
-        order by case when q.concepto_id is null then 'pregunta:' || q.id::text
-          else 'concepto:' || q.concepto_id::text end,
-          case when h.pregunta_id is null then 0 else 1 end,
-          h.ultima_vez asc nulls first, coalesce(r.apariciones_recientes, 0), random()
       )
-      select * from por_grupo
+      select * from candidatas
       order by vista, fue_anterior, fue_reciente,
-        ultima_vez asc nulls first, apariciones_recientes, random()
+        ultima_vez asc nulls first, apariciones_recientes, grupo, random()
     loop
       -- La comparación es por grupo tipado y no sólo por pregunta_id: una
       -- variante que aparezca en otro recorrido nunca ocupa otro lugar.
@@ -177,6 +175,51 @@ begin
         v_preguntas := array_append(v_preguntas, v_candidata.id);
       end if;
       exit when coalesce(array_length(v_preguntas, 1), 0) = v_objetivo;
+    end loop;
+
+    -- Si una variante ya elegida ocupa la última plaza de una categoría,
+    -- intenta moverla a otra categoría con cupo para incorporar un grupo que
+    -- quedó bloqueado. Repite el camino aumentante antes de degradar el modo.
+    loop
+      exit when coalesce(array_length(v_preguntas, 1), 0) = v_objetivo;
+      select bloqueada.id as bloqueada_id, seleccion.pregunta_id as reemplazada_id,
+        alternativa.id as alternativa_id
+      into v_reasignacion
+      from public.preguntas bloqueada
+      join unnest(v_preguntas) seleccion(pregunta_id) on true
+      join public.preguntas elegida on elegida.id = seleccion.pregunta_id
+      join public.preguntas alternativa on alternativa.concepto_id = elegida.concepto_id
+      where bloqueada.activo and bloqueada.estado_editorial = 'publicada'
+        and not exists (
+          select 1
+          from unnest(v_preguntas) actual(pregunta_id)
+          join public.preguntas incluida on incluida.id = actual.pregunta_id
+          where (case when incluida.concepto_id is null then 'pregunta:' || incluida.id::text
+            else 'concepto:' || incluida.concepto_id::text end) =
+            (case when bloqueada.concepto_id is null then 'pregunta:' || bloqueada.id::text
+              else 'concepto:' || bloqueada.concepto_id::text end)
+        )
+        and bloqueada.categoria_id = elegida.categoria_id
+        and alternativa.activo and alternativa.estado_editorial = 'publicada'
+        and alternativa.id <> elegida.id and not (alternativa.id = any(v_preguntas))
+        and alternativa.categoria_id <> bloqueada.categoria_id
+        and (select count(*) >= v_limite_categoria
+          from unnest(v_preguntas) actual(pregunta_id)
+          join public.preguntas incluida on incluida.id = actual.pregunta_id
+          where incluida.categoria_id = bloqueada.categoria_id)
+        and (select count(*) < v_limite_categoria
+          from unnest(v_preguntas) actual(pregunta_id)
+          join public.preguntas incluida on incluida.id = actual.pregunta_id
+          where incluida.categoria_id = alternativa.categoria_id)
+      order by case when exists (
+          select 1 from public.partida_preguntas pp
+          join public.partidas p on p.id = pp.partida_id
+          where p.jugador_id = v_jugador_id and pp.pregunta_id = bloqueada.id
+        ) then 1 else 0 end, random()
+      limit 1;
+      exit when not found;
+      v_preguntas := array_replace(v_preguntas, v_reasignacion.reemplazada_id, v_reasignacion.alternativa_id);
+      v_preguntas := array_append(v_preguntas, v_reasignacion.bloqueada_id);
     end loop;
 
     if coalesce(array_length(v_preguntas, 1), 0) <> v_objetivo then
