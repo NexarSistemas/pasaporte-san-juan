@@ -169,8 +169,11 @@
               <label for="image-file">Subir imagen
                 <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp" />
               </label>
+              <p class="muted image-upload-help">Formatos permitidos: JPG, PNG o WebP · Máximo: 2 MB</p>
               <div class="image-upload-actions">
                 <button id="upload-image-button" class="button button-secondary" type="button">Subir imagen</button>
+                <button id="replace-image-button" class="button button-secondary" type="button" hidden>Reemplazar imagen</button>
+                <button id="remove-image-button" class="button button-secondary" type="button" hidden>Quitar imagen</button>
                 <p id="image-upload-message" class="message" role="status" aria-live="polite"></p>
               </div>
               <figure id="image-preview" class="image-preview" hidden>

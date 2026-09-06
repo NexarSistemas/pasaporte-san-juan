@@ -1,5 +1,5 @@
 const AdminQuestions = (() => {
-  const state = { questions: [], selected: null, searchDebounce: null, questionsRequest: 0, page: 1, pageSize: 25, totalQuestions: 0 };
+  const state = { questions: [], selected: null, pendingImage: null, imageUploadInProgress: false, searchDebounce: null, questionsRequest: 0, page: 1, pageSize: 25, totalQuestions: 0 };
   const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, imagen, imagen_alt, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
   const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
@@ -22,6 +22,50 @@ const AdminQuestions = (() => {
     element.classList.toggle('is-success', success);
   };
 
+  const ownStorageObjectPath = (imageUrl) => {
+    try {
+      const image = new URL(imageUrl);
+      const project = new URL(ADMIN_SUPABASE_CONFIG.url);
+      const prefix = `/storage/v1/object/public/${imageBucket}/`;
+      if (image.origin !== project.origin || !image.pathname.startsWith(prefix)) return null;
+      const objectPath = decodeURIComponent(image.pathname.slice(prefix.length));
+      return objectPath || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const removeStorageObject = async (objectPath) => {
+    const { error } = await AdminAuth.client.storage.from(imageBucket).remove([objectPath]);
+    if (error) throw error;
+  };
+
+  const discardPendingImage = async () => {
+    const pendingImage = state.pendingImage;
+    if (!pendingImage) return;
+    await removeStorageObject(pendingImage.path);
+    if (state.pendingImage === pendingImage) state.pendingImage = null;
+  };
+
+  const removeAssociatedStorageImage = async (imageUrl) => {
+    const objectPath = ownStorageObjectPath(imageUrl);
+    if (!objectPath) return false;
+    await removeStorageObject(objectPath);
+    return true;
+  };
+
+  const refreshImageActions = () => {
+    const hasImage = Boolean(byId('#imagen').value.trim());
+    byId('#replace-image-button').hidden = !hasImage;
+    byId('#remove-image-button').hidden = !hasImage;
+  };
+
+  const setImageUploadInProgress = (inProgress) => {
+    state.imageUploadInProgress = inProgress;
+    ['#image-file', '#upload-image-button', '#replace-image-button', '#remove-image-button', '#close-editor', '#save-button']
+      .forEach((id) => { byId(id).disabled = inProgress; });
+  };
+
   const renderImagePreview = (source) => {
     const preview = byId('#image-preview');
     const image = byId('#image-preview-image');
@@ -30,6 +74,7 @@ const AdminQuestions = (() => {
       image.removeAttribute('src');
       preview.hidden = true;
       setMessage(previewMessage, '');
+      refreshImageActions();
       return;
     }
     image.alt = byId('#imagen-alt').value.trim() || 'Vista previa de la imagen de la pregunta';
@@ -37,6 +82,7 @@ const AdminQuestions = (() => {
     image.onerror = () => setMessage(previewMessage, 'No se pudo cargar la vista previa de la imagen.');
     image.src = source.startsWith('assets/') ? `../${source}` : source;
     preview.hidden = false;
+    refreshImageActions();
   };
 
   const imageFileError = (file) => {
@@ -59,17 +105,24 @@ const AdminQuestions = (() => {
       setMessage('#image-upload-message', 'El navegador no puede generar un nombre seguro para la imagen.');
       return;
     }
-    const button = byId('#upload-image-button');
     const objectPath = `preguntas/${state.selected.id}/${window.crypto.randomUUID()}.${imageExtensions[file.type]}`;
-    button.disabled = true;
-    fileInput.disabled = true;
+    setImageUploadInProgress(true);
     setMessage('#image-upload-message', 'Subiendo imagen…');
     try {
+      const previousPending = state.pendingImage;
+      if (previousPending) {
+        await discardPendingImage();
+        if (byId('#imagen').value.trim() === previousPending.publicUrl) {
+          byId('#imagen').value = state.selected.imagen || '';
+          renderImagePreview(state.selected.imagen || '');
+        }
+      }
       const storage = AdminAuth.client.storage.from(imageBucket);
       const { data, error } = await storage.upload(objectPath, file, { contentType: file.type, upsert: false });
       if (error) throw error;
       const { data: publicUrlData } = storage.getPublicUrl(data.path);
       if (!publicUrlData?.publicUrl) throw new Error('No fue posible obtener la URL pública de la imagen.');
+      state.pendingImage = { path: data.path, publicUrl: publicUrlData.publicUrl };
       byId('#imagen').value = publicUrlData.publicUrl;
       fileInput.value = '';
       renderImagePreview(publicUrlData.publicUrl);
@@ -77,8 +130,7 @@ const AdminQuestions = (() => {
     } catch (error) {
       setMessage('#image-upload-message', error.message || 'No fue posible subir la imagen.');
     } finally {
-      button.disabled = false;
-      fileInput.disabled = false;
+      setImageUploadInProgress(false);
     }
   };
 
@@ -242,6 +294,10 @@ const AdminQuestions = (() => {
   };
 
   const openEditor = (id) => {
+    if (state.pendingImage && state.selected?.id !== id) {
+      setMessage('#list-message', 'Guardá o cerrá la pregunta actual antes de editar otra imagen pendiente.');
+      return;
+    }
     const question = state.questions.find((item) => item.id === id);
     const answers = question && answersFor(question);
     if (question && !isEditable(question)) {
@@ -372,24 +428,38 @@ const AdminQuestions = (() => {
     }
   };
 
-  const saveQuestion = async (event) => {
-    event.preventDefault();
+  const saveQuestionChanges = async () => {
     if (!state.selected) return;
+    if (state.imageUploadInProgress) {
+      setMessage('#save-message', 'Esperá a que termine la subida de la imagen.');
+      return false;
+    }
     const button = byId('#save-button');
-    const answers = answersFor(state.selected);
+    const selectedQuestion = state.selected;
+    const answers = answersFor(selectedQuestion);
     const requestedConceptId = byId('#concepto-id').value.trim() || null;
     const image = optionalValue(byId('#imagen').value);
     const imageAlt = optionalValue(byId('#imagen-alt').value);
     if (image && !imageAlt) {
       setMessage('#save-message', 'Agregá un texto alternativo para la imagen antes de guardar.');
       byId('#imagen-alt').focus();
-      return;
+      return false;
+    }
+    const pendingImage = state.pendingImage;
+    const savesPendingImage = pendingImage?.publicUrl === image;
+    if (pendingImage && !savesPendingImage) {
+      try {
+        await discardPendingImage();
+      } catch (error) {
+        setMessage('#save-message', error.message || 'No fue posible eliminar la imagen pendiente.');
+        return false;
+      }
     }
     button.disabled = true;
     setMessage('#save-message', '');
     try {
       const { data, error } = await AdminAuth.client.rpc('actualizar_pregunta_admin', {
-        p_pregunta_id: state.selected.id, p_categoria_id: byId('#editor-category').value, p_texto: byId('#texto').value.trim(), p_pista: optionalValue(byId('#pista').value), p_explicacion: byId('#explicacion').value.trim(), p_dificultad: byId('#dificultad').value, p_fuente: optionalValue(byId('#fuente').value), p_url_fuente: optionalValue(byId('#url-fuente').value), p_observaciones_revision: optionalValue(byId('#observaciones-revision').value),
+        p_pregunta_id: selectedQuestion.id, p_categoria_id: byId('#editor-category').value, p_texto: byId('#texto').value.trim(), p_pista: optionalValue(byId('#pista').value), p_explicacion: byId('#explicacion').value.trim(), p_dificultad: byId('#dificultad').value, p_fuente: optionalValue(byId('#fuente').value), p_url_fuente: optionalValue(byId('#url-fuente').value), p_observaciones_revision: optionalValue(byId('#observaciones-revision').value),
         p_respuesta_correcta_id: answers.correct.id, p_respuesta_correcta: byId('#respuesta-correcta').value.trim(),
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),
         p_respuesta_3_id: answers.incorrect[1].id, p_respuesta_3: byId('#respuesta-3').value.trim(),
@@ -397,12 +467,76 @@ const AdminQuestions = (() => {
         p_concepto_id: requestedConceptId, p_imagen: image, p_imagen_alt: imageAlt
       });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
-      const selectedId = state.selected.id;
+      if (savesPendingImage) state.pendingImage = null;
+      let cleanupError = '';
+      if (selectedQuestion.imagen && selectedQuestion.imagen !== image) {
+        try {
+          await removeAssociatedStorageImage(selectedQuestion.imagen);
+        } catch (error) {
+          cleanupError = error.message || 'No fue posible eliminar la imagen anterior de Storage.';
+        }
+      }
+      const selectedId = selectedQuestion.id;
       await Promise.all([loadQuestions(), loadStatusSummary()]);
       openEditor(selectedId);
-      setMessage('#save-message', `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, true);
+      setMessage('#save-message', cleanupError || `Cambios guardados. La pregunta continúa ${state.selected.estado_editorial}.`, !cleanupError);
+      return true;
     } catch (error) {
       setMessage('#save-message', error.message || 'No fue posible guardar los cambios.');
+      return false;
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  const saveQuestion = (event) => {
+    event.preventDefault();
+    saveQuestionChanges();
+  };
+
+  const replaceImage = () => {
+    const fileInput = byId('#image-file');
+    fileInput.value = '';
+    fileInput.click();
+    setMessage('#image-upload-message', 'Elegí una imagen y presioná “Subir imagen”.');
+  };
+
+  const removeImage = async () => {
+    if (!state.selected || (!byId('#imagen').value.trim() && !state.pendingImage)) return;
+    if (state.imageUploadInProgress) {
+      setMessage('#save-message', 'Esperá a que termine la subida de la imagen.');
+      return;
+    }
+    if (!window.confirm('¿Querés quitar la imagen de esta pregunta?')) return;
+    const button = byId('#remove-image-button');
+    button.disabled = true;
+    try {
+      await discardPendingImage();
+      byId('#imagen').value = '';
+      byId('#imagen-alt').value = '';
+      renderImagePreview('');
+      await saveQuestionChanges();
+    } catch (error) {
+      setMessage('#save-message', error.message || 'No fue posible quitar la imagen pendiente.');
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  const closeEditor = async () => {
+    if (state.imageUploadInProgress) {
+      setMessage('#save-message', 'Esperá a que termine la subida de la imagen.');
+      return;
+    }
+    const button = byId('#close-editor');
+    button.disabled = true;
+    try {
+      await discardPendingImage();
+      clearSimilarityReview();
+      byId('#editor-panel').hidden = true;
+      state.selected = null;
+    } catch (error) {
+      setMessage('#save-message', error.message || 'No fue posible eliminar la imagen pendiente.');
     } finally {
       button.disabled = false;
     }
@@ -454,7 +588,7 @@ const AdminQuestions = (() => {
     document.addEventListener('admin:questions-changed', () => {
       Promise.all([resetQuestionsPage(), loadStatusSummary()]).catch(() => setMessage('#list-message', 'No fue posible actualizar las preguntas.'));
     });
-    byId('#close-editor').addEventListener('click', () => { clearSimilarityReview(); byId('#editor-panel').hidden = true; state.selected = null; });
+    byId('#close-editor').addEventListener('click', closeEditor);
     byId('#question-form').addEventListener('submit', saveQuestion);
     byId('#imagen').addEventListener('input', () => renderImagePreview(byId('#imagen').value.trim()));
     byId('#imagen-alt').addEventListener('input', () => {
@@ -462,6 +596,8 @@ const AdminQuestions = (() => {
       if (preview.getAttribute('src')) preview.alt = byId('#imagen-alt').value.trim() || 'Vista previa de la imagen de la pregunta';
     });
     byId('#upload-image-button').addEventListener('click', uploadImage);
+    byId('#replace-image-button').addEventListener('click', replaceImage);
+    byId('#remove-image-button').addEventListener('click', removeImage);
     byId('#review-similarity-button').addEventListener('click', () => reviewSimilarity());
     try { await loadCategories(); await Promise.all([loadQuestions(), loadStatusSummary()]); } catch (_) { setMessage('#list-message', 'No fue posible cargar las preguntas.'); }
   };
