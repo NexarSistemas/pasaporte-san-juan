@@ -134,7 +134,27 @@ begin
       order by vista, fue_anterior, fue_reciente,
         ultima_vez asc nulls first, apariciones_recientes, random()
       loop
-        if not (v_candidata.id = any(v_preguntas))
+        if (v_candidata.vista = 0 or not exists (
+              select 1
+              from public.preguntas no_vista
+              where no_vista.activo and no_vista.estado_editorial = 'publicada'
+                and not exists (
+                  select 1 from public.partida_preguntas pp
+                  join public.partidas p on p.id = pp.partida_id
+                  where p.jugador_id = v_jugador_id
+                    and pp.pregunta_id = no_vista.id
+                )
+                and not exists (
+                  select 1
+                  from unnest(v_preguntas) seleccion(pregunta_id)
+                  join public.preguntas elegida on elegida.id = seleccion.pregunta_id
+                  where (case when elegida.concepto_id is null then 'pregunta:' || elegida.id::text
+                    else 'concepto:' || elegida.concepto_id::text end) =
+                    (case when no_vista.concepto_id is null then 'pregunta:' || no_vista.id::text
+                      else 'concepto:' || no_vista.concepto_id::text end)
+                )
+            ))
+            and not (v_candidata.id = any(v_preguntas))
             and (v_modo >= 3 or (
             select count(*) < 2
             from unnest(v_preguntas) seleccion(pregunta_id)
