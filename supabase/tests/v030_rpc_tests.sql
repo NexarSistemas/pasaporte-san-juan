@@ -53,6 +53,27 @@ declare
   v_partida_orden_menor uuid;
   v_partida_orden_mayor uuid;
   v_orden_reciente jsonb;
+  v_token_variedad uuid := 'aaaaaaaa-5555-4555-8555-555555555555';
+  v_variedad jsonb;
+  v_token_grupos uuid := 'aaaaaaaa-6666-4666-8666-666666666666';
+  v_grupos jsonb;
+  v_token_orden_categoria uuid := 'aaaaaaaa-7777-4777-8777-777777777777';
+  v_orden_categoria jsonb;
+  v_token_variante_categoria uuid := 'aaaaaaaa-8888-4888-8888-888888888888';
+  v_variante_categoria jsonb;
+  v_jugador_variante_categoria uuid;
+  v_partida_variante_base uuid;
+  v_partida_variante_reciente uuid;
+  v_token_grupo_fallback uuid := 'aaaaaaaa-9999-4999-8999-999999999999';
+  v_grupo_fallback jsonb;
+  v_jugador_grupo_fallback uuid;
+  v_partida_grupo_base uuid;
+  v_partida_grupo_reciente uuid;
+  v_token_variante_viable uuid := 'bbbbbbbb-1111-4111-8111-111111111111';
+  v_variante_viable jsonb;
+  v_jugador_variante_viable uuid;
+  v_partida_variante_primaria uuid;
+  v_partida_variante_alternativa uuid;
   v_nombres_categorias text[];
   v_posiciones_categorias integer[];
 begin
@@ -582,6 +603,281 @@ begin
     join public.preguntas p on p.id::text = q->>'id'
     where p.codigo_origen = 'orden-reciente-11'
   ), 'Con timestamps iguales, la partida de mayor número debe recibir la penalización inmediata';
+
+  -- Con diez conceptos repartidos en cinco categorías, la partida completa
+  -- debe mantener las dos restricciones de variedad sin sacrificar conceptos.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select format('variedad-%s-%s', datos.slug, datos.n), c.id,
+    format('Variedad %s', datos.n), 'Prueba de variedad', 'publicada',
+    ('40000000-0000-4000-8000-' || lpad(datos.n::text, 12, '0'))::uuid
+  from (values
+    ('destinos', 1), ('destinos', 2),
+    ('naturaleza', 3), ('naturaleza', 4),
+    ('aventura', 5), ('aventura', 6),
+    ('cultura', 7), ('cultura', 8),
+    ('historia', 9), ('historia', 10)
+  ) as datos(slug, n)
+  join public.categorias c on c.slug = datos.slug;
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'variedad-%';
+
+  v_variedad := public.crear_partida(v_token_variedad);
+  assert jsonb_array_length(v_variedad->'questions') = 10,
+    'Un banco con diez grupos debe generar una partida completa de diez preguntas';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    join public.partidas partida on partida.id = pp.partida_id
+    where partida.id = (v_variedad->>'partida_id')::uuid
+    group by p.categoria_id
+    having count(*) > 2
+  ), 'Una partida no debe incluir más de dos preguntas de la misma categoría';
+  assert not exists (
+    select 1
+    from (
+      select p.categoria_id,
+        lag(p.categoria_id) over (order by pp.orden) as categoria_anterior
+      from public.partida_preguntas pp
+      join public.preguntas p on p.id = pp.pregunta_id
+      where pp.partida_id = (v_variedad->>'partida_id')::uuid
+    ) ordenadas
+    where categoria_id = categoria_anterior
+  ), 'Una partida no debe incluir categorías consecutivas iguales';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    where pp.partida_id = (v_variedad->>'partida_id')::uuid
+    group by p.concepto_id
+    having count(*) > 1
+  ), 'La variedad por categoría no debe permitir dos preguntas del mismo concepto';
+
+  -- Regresión 1: dos variantes de un mismo concepto siguen ocupando un solo
+  -- grupo aunque la selección recorra candidatas en más de una etapa.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select format('reg-grupo-%s', n), c.id, format('Grupo %s', n), 'Prueba de grupos', 'publicada',
+    ('50000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
+  from generate_series(1, 10) n
+  join public.categorias c on c.slug = (array[
+    'destinos', 'naturaleza', 'aventura', 'cultura', 'historia'
+  ])[((n - 1) % 5) + 1];
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-grupo-variante', id, 'Variante de grupo uno', 'Prueba de grupos', 'publicada',
+    '50000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'argentinismos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-grupo-%';
+  v_grupos := public.crear_partida(v_token_grupos);
+  assert jsonb_array_length(v_grupos->'questions') = 10,
+    'El banco de diez grupos debe conservar diez preguntas';
+  select count(distinct p.concepto_id) into v_count
+  from jsonb_array_elements(v_grupos->'questions') q
+  join public.preguntas p on p.id::text = q->>'id';
+  assert v_count = 10,
+    'Dos variantes nunca deben ocupar dos lugares de la misma partida';
+
+  -- Regresión 2: A, A y B tiene el orden válido A, B, A. La selección no
+  -- debe aceptar la adyacencia sólo por haber encontrado B primero.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'reg-orden-a-1', id, 'Orden A uno', 'Prueba de orden', 'publicada'
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'reg-orden-a-2', id, 'Orden A dos', 'Prueba de orden', 'publicada'
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'reg-orden-b', id, 'Orden B', 'Prueba de orden', 'publicada'
+  from public.categorias where slug = 'naturaleza';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-orden-%';
+  v_orden_categoria := public.crear_partida(v_token_orden_categoria);
+  assert jsonb_array_length(v_orden_categoria->'questions') = 3,
+    'El banco A, A, B debe conservar las tres preguntas';
+  assert not exists (
+    select 1 from (
+      select p.categoria_id, lag(p.categoria_id) over (order by pp.orden) as anterior
+      from public.partida_preguntas pp
+      join public.preguntas p on p.id = pp.pregunta_id
+      where pp.partida_id = (v_orden_categoria->>'partida_id')::uuid
+    ) ordenadas where categoria_id = anterior
+  ), 'A, A, B debe ordenarse sin categorías consecutivas iguales';
+
+  -- Regresión 3: una variante del mismo concepto en otra categoría no puede
+  -- reemplazar una partida histórica si convierte dos preguntas en tres.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select format('reg-variante-base-%s', n), c.id, format('Variante base %s', n),
+    'Prueba de fallback', 'publicada',
+    ('60000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid
+  from generate_series(1, 10) n
+  join public.categorias c on c.slug = (array[
+    'destinos', 'naturaleza', 'aventura', 'cultura', 'historia'
+  ])[((n - 1) % 5) + 1];
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-variante-cruza-categoria', id, 'Variante que supera el máximo',
+    'Prueba de fallback', 'publicada', '60000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'naturaleza';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-variante-%';
+  insert into public.jugadores (player_token) values (v_token_variante_categoria)
+  returning id into v_jugador_variante_categoria;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_categoria, 1, 1) returning id into v_partida_variante_base;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_base, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas where codigo_origen like 'reg-variante-base-%';
+  update public.partidas set created_at = now() - interval '10 days'
+  where id = v_partida_variante_base;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_categoria, 2, 1) returning id into v_partida_variante_reciente;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_reciente, id, 1
+  from public.preguntas where codigo_origen = 'reg-variante-cruza-categoria';
+  v_variante_categoria := public.crear_partida(v_token_variante_categoria);
+  assert not exists (
+    select 1
+    from jsonb_array_elements(v_variante_categoria->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-variante-cruza-categoria'
+  ), 'Una variante que rompe el máximo por categoría no debe usarse en el fallback';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    where pp.partida_id = (v_variante_categoria->>'partida_id')::uuid
+    group by p.categoria_id having count(*) > 2
+  ), 'El fallback debe preservar el máximo por categoría del modo logrado';
+
+  -- Regresión 4: sin variante equivalente, un conjunto histórico de diez
+  -- grupos debe reemplazarse por el undécimo grupo disponible.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select format('reg-fallback-base-%s', n), c.id, format('Fallback base %s', n),
+    'Prueba de fallback por grupo', 'publicada'
+  from generate_series(1, 10) n
+  join public.categorias c on c.slug = (array[
+    'destinos', 'naturaleza', 'aventura', 'cultura', 'historia'
+  ])[((n - 1) % 5) + 1];
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select 'reg-fallback-grupo-nuevo', id, 'Grupo nuevo para fallback',
+    'Prueba de fallback por grupo', 'publicada'
+  from public.categorias where slug = 'argentinismos';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-fallback-%';
+  insert into public.jugadores (player_token) values (v_token_grupo_fallback)
+  returning id into v_jugador_grupo_fallback;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_grupo_fallback, 1, 1) returning id into v_partida_grupo_base;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_grupo_base, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas where codigo_origen like 'reg-fallback-base-%';
+  update public.partidas set created_at = now() - interval '10 days'
+  where id = v_partida_grupo_base;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_grupo_fallback, 2, 1) returning id into v_partida_grupo_reciente;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_grupo_reciente, id, 1
+  from public.preguntas where codigo_origen = 'reg-fallback-grupo-nuevo';
+  v_grupo_fallback := public.crear_partida(v_token_grupo_fallback);
+  assert exists (
+    select 1
+    from jsonb_array_elements(v_grupo_fallback->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-fallback-grupo-nuevo'
+  ), 'Sin variante, el fallback debe usar un grupo no seleccionado disponible';
+
+  -- Regresión 5: la variante primaria entra primero y después bloquea la
+  -- segunda plaza necesaria en Destinos. Su alternativa en Identidad debe
+  -- reasignarse antes de degradar el modo estricto.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (codigo_origen, categoria_id, texto, explicacion, estado_editorial)
+  select format('reg-viable-%s', datos.n), c.id, format('Viable %s', datos.n),
+    'Prueba de variantes viables', 'publicada'
+  from (values
+    (1, 'destinos'), (2, 'destinos'),
+    (3, 'naturaleza'), (4, 'naturaleza'),
+    (5, 'aventura'), (6, 'aventura'),
+    (7, 'cultura'), (8, 'cultura'), (9, 'historia')
+  ) as datos(n, slug)
+  join public.categorias c on c.slug = datos.slug;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-viable-primaria', id, 'Variante primaria bloqueada',
+    'Prueba de variantes viables', 'publicada', '70000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'destinos';
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select 'reg-viable-alternativa', id, 'Variante alternativa viable',
+    'Prueba de variantes viables', 'publicada', '70000000-0000-4000-8000-000000000001'::uuid
+  from public.categorias where slug = 'identidad-sanjuanina';
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'reg-viable-%';
+  insert into public.jugadores (player_token) values (v_token_variante_viable)
+  returning id into v_jugador_variante_viable;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_viable, 1, 1) returning id into v_partida_variante_primaria;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_primaria, id, row_number() over (order by codigo_origen)::smallint
+  from public.preguntas where codigo_origen ~ '^reg-viable-[1-9]$';
+  update public.partidas set created_at = now() - interval '2 days'
+  where id = v_partida_variante_primaria;
+  insert into public.partidas (jugador_id, numero_partida, ciclo)
+  values (v_jugador_variante_viable, 2, 1) returning id into v_partida_variante_alternativa;
+  insert into public.partida_preguntas (partida_id, pregunta_id, orden)
+  select v_partida_variante_alternativa, id, 1
+  from public.preguntas where codigo_origen = 'reg-viable-alternativa';
+
+  v_variante_viable := public.crear_partida(v_token_variante_viable);
+  assert jsonb_array_length(v_variante_viable->'questions') = 10,
+    'La variante viable debe completar una partida de diez preguntas';
+  assert exists (
+    select 1
+    from jsonb_array_elements(v_variante_viable->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-viable-alternativa'
+  ), 'Una variante alternativa debe evitar degradar el modo estricto';
+  assert not exists (
+    select 1
+    from jsonb_array_elements(v_variante_viable->'questions') q
+    join public.preguntas p on p.id::text = q->>'id'
+    where p.codigo_origen = 'reg-viable-primaria'
+  ), 'La variante bloqueada por categoría no debe desplazar a la viable';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    where pp.partida_id = (v_variante_viable->>'partida_id')::uuid
+    group by p.categoria_id having count(*) > 2
+  ), 'La alternativa viable debe conservar el máximo por categoría';
+  assert not exists (
+    select 1 from (
+      select p.categoria_id, lag(p.categoria_id) over (order by pp.orden) as anterior
+      from public.partida_preguntas pp
+      join public.preguntas p on p.id = pp.pregunta_id
+      where pp.partida_id = (v_variante_viable->>'partida_id')::uuid
+    ) ordenadas where categoria_id = anterior
+  ), 'La alternativa viable debe conservar la no adyacencia';
 
   assert exists (
     select 1
