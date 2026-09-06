@@ -1,6 +1,6 @@
 const AdminQuestions = (() => {
   const state = { questions: [], selected: null, searchDebounce: null, questionsRequest: 0, page: 1, pageSize: 25, totalQuestions: 0 };
-  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
+  const fields = 'id, categoria_id, texto, texto_original, pista, explicacion, dificultad, fuente, url_fuente, imagen, imagen_alt, observaciones_revision, estado_editorial, concepto_id, categorias(nombre), respuestas(id, texto, es_correcta)';
   const editorialStates = ['pendiente', 'en_revision', 'revisada', 'publicada', 'rechazada'];
   const editorialLabels = { pendiente: 'Pendiente', en_revision: 'En revisión', revisada: 'Revisada', publicada: 'Publicada', rechazada: 'Rechazada' };
   const byId = (id) => document.querySelector(id);
@@ -202,6 +202,8 @@ const AdminQuestions = (() => {
     byId('#fuente').value = question.fuente || '';
     byId('#concepto-id').value = question.concepto_id || '';
     byId('#url-fuente').value = question.url_fuente || '';
+    byId('#imagen').value = question.imagen || '';
+    byId('#imagen-alt').value = question.imagen_alt || '';
     byId('#observaciones-revision').value = question.observaciones_revision || '';
     byId('#respuesta-correcta').value = answers.correct.texto;
     answers.incorrect.forEach((answer, index) => { byId(`#respuesta-${index + 2}`).value = answer.texto; });
@@ -319,7 +321,7 @@ const AdminQuestions = (() => {
         p_respuesta_2_id: answers.incorrect[0].id, p_respuesta_2: byId('#respuesta-2').value.trim(),
         p_respuesta_3_id: answers.incorrect[1].id, p_respuesta_3: byId('#respuesta-3').value.trim(),
         p_respuesta_4_id: answers.incorrect[2].id, p_respuesta_4: byId('#respuesta-4').value.trim(),
-        p_concepto_id: requestedConceptId
+        p_concepto_id: requestedConceptId, p_imagen: optionalValue(byId('#imagen').value), p_imagen_alt: optionalValue(byId('#imagen-alt').value)
       });
       if (error || !data?.ok) throw new Error(error?.message || data?.mensaje);
       const selectedId = state.selected.id;

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Pasaporte San Juan</title>
+  <desc id="desc">Ilustración neutra de paisaje sanjuanino para preguntas sin imagen específica</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#e9f2f1"/>
+      <stop offset="1" stop-color="#c9dfe0"/>
+    </linearGradient>
+    <linearGradient id="land" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#91b7b5"/>
+      <stop offset="1" stop-color="#557b7f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="520" fill="url(#sky)"/>
+  <circle cx="930" cy="150" r="74" fill="#f2b544" opacity=".9"/>
+  <path d="M0 390 210 210l145 119 175-188 218 249 145-132 307 132v130H0Z" fill="#789e9e"/>
+  <path d="m0 430 250-126 163 72 190-105 170 97 174-73 253 105v120H0Z" fill="url(#land)"/>
+  <path d="M0 480c180-25 300-24 460 0s286 25 430 0 208-25 310-7v47H0Z" fill="#3d646b" opacity=".72"/>
+</svg>
