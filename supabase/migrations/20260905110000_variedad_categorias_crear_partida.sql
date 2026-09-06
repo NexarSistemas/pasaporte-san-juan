@@ -19,6 +19,7 @@ declare
   v_objetivo integer;
   v_limite_categoria integer;
   v_modo integer;
+  v_modo_logrado integer;
   v_preguntas uuid[] := '{}'::uuid[];
   v_ordenadas uuid[];
   v_restantes uuid[];
@@ -235,6 +236,7 @@ begin
     end if;
 
     v_seleccion_completa := true;
+    v_modo_logrado := v_modo;
     exit;
   end loop;
 
@@ -271,12 +273,12 @@ begin
           and alternativa.id <> elegida.id and not (alternativa.id = any(v_preguntas))
       loop
         v_candidata_array := array_replace(v_preguntas, v_seleccion.pregunta_id, v_alternativa.id);
-        select (v_modo not in (1, 2) or not exists (
+        select (v_modo_logrado not in (1, 2) or not exists (
             select 1
             from unnest(v_candidata_array) seleccion(pregunta_id)
             join public.preguntas p on p.id = seleccion.pregunta_id
             group by p.categoria_id having count(*) > 2
-          )) and (v_modo not in (1, 3) or not exists (
+          )) and (v_modo_logrado not in (1, 3) or not exists (
             select 1 from (
               select p.categoria_id, lag(p.categoria_id) over (order by seleccion.orden) as anterior
               from unnest(v_candidata_array) with ordinality seleccion(pregunta_id, orden)
@@ -321,12 +323,12 @@ begin
             )
         loop
           v_candidata_array := array_replace(v_preguntas, v_seleccion.pregunta_id, v_alternativa.id);
-          select (v_modo not in (1, 2) or not exists (
+          select (v_modo_logrado not in (1, 2) or not exists (
               select 1
               from unnest(v_candidata_array) seleccion(pregunta_id)
               join public.preguntas p on p.id = seleccion.pregunta_id
               group by p.categoria_id having count(*) > 2
-            )) and (v_modo not in (1, 3) or not exists (
+            )) and (v_modo_logrado not in (1, 3) or not exists (
               select 1 from (
                 select p.categoria_id, lag(p.categoria_id) over (order by seleccion.orden) as anterior
                 from unnest(v_candidata_array) with ordinality seleccion(pregunta_id, orden)
