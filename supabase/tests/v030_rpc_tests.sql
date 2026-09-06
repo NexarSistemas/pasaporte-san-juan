@@ -53,6 +53,8 @@ declare
   v_partida_orden_menor uuid;
   v_partida_orden_mayor uuid;
   v_orden_reciente jsonb;
+  v_token_variedad uuid := 'aaaaaaaa-5555-4555-8555-555555555555';
+  v_variedad jsonb;
   v_nombres_categorias text[];
   v_posiciones_categorias integer[];
 begin
@@ -582,6 +584,59 @@ begin
     join public.preguntas p on p.id::text = q->>'id'
     where p.codigo_origen = 'orden-reciente-11'
   ), 'Con timestamps iguales, la partida de mayor número debe recibir la penalización inmediata';
+
+  -- Con diez conceptos repartidos en cinco categorías, la partida completa
+  -- debe mantener las dos restricciones de variedad sin sacrificar conceptos.
+  update public.preguntas set activo = false;
+  insert into public.preguntas (
+    codigo_origen, categoria_id, texto, explicacion, estado_editorial, concepto_id
+  )
+  select format('variedad-%s-%s', datos.slug, datos.n), c.id,
+    format('Variedad %s', datos.n), 'Prueba de variedad', 'publicada',
+    ('40000000-0000-4000-8000-' || lpad(datos.n::text, 12, '0'))::uuid
+  from (values
+    ('destinos', 1), ('destinos', 2),
+    ('naturaleza', 3), ('naturaleza', 4),
+    ('aventura', 5), ('aventura', 6),
+    ('cultura', 7), ('cultura', 8),
+    ('historia', 9), ('historia', 10)
+  ) as datos(slug, n)
+  join public.categorias c on c.slug = datos.slug;
+  insert into public.respuestas (pregunta_id, texto, es_correcta)
+  select id, 'Correcta ' || codigo_origen, true
+  from public.preguntas where codigo_origen like 'variedad-%';
+
+  v_variedad := public.crear_partida(v_token_variedad);
+  assert jsonb_array_length(v_variedad->'questions') = 10,
+    'Un banco con diez grupos debe generar una partida completa de diez preguntas';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    join public.partidas partida on partida.id = pp.partida_id
+    where partida.id = (v_variedad->>'partida_id')::uuid
+    group by p.categoria_id
+    having count(*) > 2
+  ), 'Una partida no debe incluir más de dos preguntas de la misma categoría';
+  assert not exists (
+    select 1
+    from (
+      select p.categoria_id,
+        lag(p.categoria_id) over (order by pp.orden) as categoria_anterior
+      from public.partida_preguntas pp
+      join public.preguntas p on p.id = pp.pregunta_id
+      where pp.partida_id = (v_variedad->>'partida_id')::uuid
+    ) ordenadas
+    where categoria_id = categoria_anterior
+  ), 'Una partida no debe incluir categorías consecutivas iguales';
+  assert not exists (
+    select 1
+    from public.partida_preguntas pp
+    join public.preguntas p on p.id = pp.pregunta_id
+    where pp.partida_id = (v_variedad->>'partida_id')::uuid
+    group by p.concepto_id
+    having count(*) > 1
+  ), 'La variedad por categoría no debe permitir dos preguntas del mismo concepto';
 
   assert exists (
     select 1
